@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#07111d" />
+    <title>AstroVitals — Mission monitoring</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="#" aria-label="AstroVitals home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M16 3 28 25H4L16 3Z" stroke="currentColor" stroke-width="1.5" />
+              <path d="m16 11 7 13H9l7-13Z" fill="currentColor" />
+              <circle cx="16" cy="21" r="2" fill="#07111d" />
+            </svg>
+          </span>
+          <span class="brand-copy">
+            <strong>Astro<span>Vitals</span></strong>
+            <small>MISSION CONTROL</small>
+          </span>
+        </a>
+
+        <div class="nav-label">WORKSPACE</div>
+        <nav class="main-nav">
+          <a class="nav-item active" href="#overview" aria-current="page">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="6" rx="1" /><rect x="12" y="3" width="5" height="4" rx="1" /><rect x="12" y="10" width="5" height="7" rx="1" /><rect x="3" y="12" width="5" height="5" rx="1" /></svg>
+            Overview
+          </a>
+          <a class="nav-item" href="#mission-risk">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 17 6v4.5c0 3.2-2.2 5.7-7 7-4.8-1.3-7-3.8-7-7V6l7-3.5Z" /><path d="m7 10 2 2 4-4" /></svg>
+            Mission risk
+          </a>
+          <a class="nav-item" href="#vitals">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10h3l2-5 4 10 2.2-5H17.5" /></svg>
+            Vital signs
+          </a>
+          <a class="nav-item" href="#long-term">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16V9m6 7V4m6 12v-5M2 17.5h16" /></svg>
+            Long-term health
+          </a>
+          <a class="nav-item" href="#alerts">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.2 17 16H3L10 3.2Z" /><path d="M10 8v3.5m0 2v.1" /></svg>
+            Alerts <span class="nav-count" id="nav-alert-count">2</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-divider"></div>
+        <div class="nav-label crew-label">MISSION CREW <span>03</span></div>
+        <div class="crew-list" id="crew-list" aria-label="Select astronaut"></div>
+
+        <div class="sidebar-bottom">
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="live-dot"></span>
+              <span>MISSION ACTIVE</span>
+            </div>
+            <strong>Odyssey-07</strong>
+            <span class="mission-elapsed">SOL 142 <i>·</i> DAY 196</span>
+            <div class="mission-progress"><span></span></div>
+            <div class="progress-label"><span>MISSION TIMELINE</span><span>72%</span></div>
+          </div>
+          <button class="settings-link" type="button" aria-label="Settings">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3" /><path d="m16.1 12.5 1.1 1.8-2.2 2.2-1.8-1.1c-.5.3-1 .5-1.5.6l-.5 2h-3l-.5-2c-.5-.1-1-.3-1.5-.6l-1.8 1.1-2.2-2.2 1.1-1.8a6 6 0 0 1-.6-1.5l-2-.5v-3l2-.5c.1-.5.3-1 .6-1.5L2.2 3.7 4.4 1.5l1.8 1.1c.5-.3 1-.5 1.5-.6l.5-2h3l.5 2c.5.1 1 .3 1.5.6l1.8-1.1 2.2 2.2-1.1 1.8c.3.5.5 1 .6 1.5l2 .5v3l-2 .5c-.1.5-.3 1-.6 1.5Z" transform="translate(0 1)" /></svg>
+            Settings <span>⌘ ,</span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content" id="overview">
+        <header class="topbar">
+          <div class="breadcrumbs">MISSIONS <span>/</span> ODYSSEY-07 <span>/</span> <strong>HEALTH OVERVIEW</strong></div>
+          <div class="topbar-right">
+            <div class="connection-status"><span class="live-dot"></span> ALL SYSTEMS NOMINAL</div>
+            <div class="topbar-divider"></div>
+            <div class="mission-clock"><span>MISSION ELAPSED</span><strong>142<span>D</span> 08<span>H</span> 36<span>M</span></strong></div>
+            <button class="avatar-button" type="button" aria-label="Mission operator profile">MC</button>
+          </div>
+        </header>
+
+        <div class="content-wrap">
+          <section class="page-heading">
+            <div>
+              <div class="eyebrow"><span class="eyebrow-line"></span> FLIGHT MEDICAL DASHBOARD <span class="eyebrow-date" id="current-date"></span></div>
+              <h1>Health overview<span class="heading-period">.</span></h1>
+              <p class="page-subtitle">Crew status and physiological trends for <strong>Odyssey-07</strong></p>
+            </div>
+            <button class="export-button" id="export-button" type="button">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3-3m-3 3L7 9M4 13v3h12v-3" /></svg>
+              Export report
+            </button>
+          </section>
+
+          <section class="crew-overview panel" aria-label="Selected crew member">
+            <div class="crew-profile">
+              <div class="large-avatar" id="selected-avatar">AM</div>
+              <div>
+                <div class="profile-kicker">CREW MEMBER <span class="profile-separator">/</span> <span id="crew-role">COMMANDER</span></div>
+                <h2 id="crew-name">Ava Mitchell</h2>
+                <div class="crew-meta">
+                  <span><span class="meta-icon">◈</span> <span id="crew-callsign">ASTRA-01</span></span>
+                  <span><span class="meta-icon">◎</span> Expedition specialist</span>
+                  <span class="profile-live"><span class="live-dot"></span> MONITORING</span>
+                </div>
+              </div>
+            </div>
+            <div class="profile-stat">
+              <span>LAST CHECK-IN</span>
+              <strong>2 <small>MIN AGO</small></strong>
+              <span class="stat-foot"><span class="live-dot"></span> Telemetry active</span>
+            </div>
+            <div class="profile-stat profile-stat-right">
+              <span>OVERALL STATUS</span>
+              <strong class="status-text"><span class="status-check">✓</span> Stable</strong>
+              <span class="stat-foot">No urgent alerts</span>
+            </div>
+          </section>
+
+          <section class="section-block mission-intel" id="mission-risk">
+            <div class="section-heading">
+              <div>
+                <div class="section-kicker">PRIORITY 00 <span>·</span> EDGE-FIRST OPERATIONS</div>
+                <h2>Mission risk &amp; onboard operations</h2>
+              </div>
+              <div class="section-note"><span class="local-dot"></span> Onboard demo mode</div>
+            </div>
+            <div class="intel-grid">
+              <article class="risk-panel panel">
+                <div class="intel-kicker">MULTI-FACTOR RISK MODEL <span>·</span> ILLUSTRATIVE ONLY</div>
+                <div class="risk-overview">
+                  <div class="risk-gauge" id="risk-gauge" role="img" aria-label="Illustrative risk score">
+                    <div><strong id="risk-score">12</strong><span> / 100</span></div>
+                  </div>
+                  <div class="risk-summary">
+                    <strong id="risk-band">Low</strong>
+                    <span>Rule-based demo composite</span>
+                    <small>Not a clinical assessment or flight rule.</small>
+                  </div>
+                </div>
+                <div class="risk-factors" aria-label="Risk model factors">
+                  <div class="risk-factor">
+                    <span>Physiology <small>HR · SpO₂ · temp · ECG</small></span>
+                    <div class="risk-track"><i id="physiology-risk-bar"></i></div>
+                    <strong id="physiology-risk-value">0</strong>
+                  </div>
+                  <div class="risk-factor">
+                    <span>Cabin &amp; radiation <small id="environment-inputs">CO₂ 820 ppm · 128 mSv</small></span>
+                    <div class="risk-track"><i id="environment-risk-bar"></i></div>
+                    <strong id="environment-risk-value">22</strong>
+                  </div>
+                  <div class="risk-factor">
+                    <span>Recovery <small>Sleep · reaction</small></span>
+                    <div class="risk-track"><i id="recovery-risk-bar"></i></div>
+                    <strong id="recovery-risk-value">16</strong>
+                  </div>
+                </div>
+                <p class="intel-disclaimer">Weighted 45% physiology, 35% environment, 20% recovery. Demo thresholds only; not a flight rule.</p>
+              </article>
+
+              <article class="ops-panel panel">
+                <div class="intel-kicker">SPACECRAFT EDGE <span>·</span> DELAY-TOLERANT</div>
+                <div class="edge-status">
+                  <span class="edge-icon" aria-hidden="true">⌁</span>
+                  <div><strong>Local rules active</strong><small>Displayed without an Earth connection</small></div>
+                  <span class="local-pill">ONBOARD</span>
+                </div>
+                <div class="ops-metrics">
+                  <div><span>EARTH LINK</span><strong id="earth-link-status">DELAYED · SIMULATED</strong></div>
+                  <div><span>QUEUED PACKETS</span><strong><span id="queue-count">12</span> <small>LOCAL DEMO</small></strong></div>
+                </div>
+                <button class="queue-button" id="queue-batch-button" type="button">Queue local batch <span>→</span></button>
+                <button class="uplink-button" id="uplink-button" type="button">Simulate contact window</button>
+                <div class="data-source">
+                  <span class="data-source-mark" aria-hidden="true">↗</span>
+                  <div><a href="https://osdr.nasa.gov/bio/repo/" target="_blank" rel="noopener noreferrer">NASA OSDR / GeneLab</a><small>Public research catalog reference · not live-ingested</small></div>
+                </div>
+                <p class="intel-disclaimer">No telemetry is sent or stored off-device in this prototype.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section-block" id="vitals">
+            <div class="section-heading">
+              <div>
+                <div class="section-kicker">PRIORITY 01 <span>·</span> REAL-TIME</div>
+                <h2>Essential vitals</h2>
+              </div>
+              <div class="section-note"><span class="live-dot"></span> Updated just now</div>
+            </div>
+
+            <div class="vitals-grid">
+              <article class="vital-card panel" data-vital="heartRate">
+                <div class="vital-card-header"><span class="vital-icon coral"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16.3s-6.7-3.8-6.7-8.1A3.5 3.5 0 0 1 10 6a3.5 3.5 0 0 1 6.7 2.2c0 4.3-6.7 8.1-6.7 8.1Z" /><path d="M3.3 10h3l1.5-2.3 2.1 4.5 1.5-2.2h5.3" /></svg></span><span class="vital-rank">01</span></div>
+                <div class="vital-label">Heart rate</div>
+                <div class="vital-reading"><strong id="heart-rate-value">68</strong><span>BPM</span></div>
+                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="sparkline-wrap"><svg class="sparkline coral-line" viewBox="0 0 180 34" preserveAspectRatio="none" aria-label="Heart rate trend"><path class="spark-fill" d="M0 22 C12 20 16 24 26 19 S41 16 48 19 S61 22 70 14 S83 16 91 17 S102 21 112 13 S127 13 136 16 S149 12 158 15 S170 17 180 9V34H0Z" /><path class="spark-stroke" d="M0 22 C12 20 16 24 26 19 S41 16 48 19 S61 22 70 14 S83 16 91 17 S102 21 112 13 S127 13 136 16 S149 12 158 15 S170 17 180 9" /></svg></div>
+                <div class="card-foot"><span>RESTING</span><span>LAST 30 MIN</span></div>
+              </article>
+
+              <article class="vital-card panel" data-vital="bloodPressure">
+                <div class="vital-card-header"><span class="vital-icon blue"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15.5h14M5 13V9m5 4V5m5 8v-6" /><circle cx="5" cy="7" r="1.5" /><circle cx="10" cy="3" r="1.5" /><circle cx="15" cy="5" r="1.5" /></svg></span><span class="vital-rank">02</span></div>
+                <div class="vital-label">Blood pressure</div>
+                <div class="vital-reading bp-reading"><strong id="blood-pressure-value">118<span>/</span>76</strong><span>MMHG</span></div>
+                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="mini-chart bp-chart" aria-hidden="true"><span style="height:34%"></span><span style="height:51%"></span><span style="height:43%"></span><span style="height:60%"></span><span style="height:46%"></span><span style="height:70%"></span><span style="height:54%"></span><span style="height:63%"></span><span style="height:44%"></span><span style="height:76%"></span><span style="height:58%"></span><span style="height:68%"></span><span style="height:48%"></span><span style="height:56%"></span></div>
+                <div class="card-foot"><span>SEATED</span><span>LAST 30 MIN</span></div>
+              </article>
+
+              <article class="vital-card panel" data-vital="spo2">
+                <div class="vital-card-header"><span class="vital-icon mint"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s-6-5.3-6-9.3A3.7 3.7 0 0 1 10 5a3.7 3.7 0 0 1 6 2.7C16 11.7 10 17 10 17Z" /><path d="M6 10h2l1.2-2.3 2 4.6 1.3-2.3H15" /></svg></span><span class="vital-rank">03</span></div>
+                <div class="vital-label">Blood oxygen <span class="sub-label">SpO₂</span></div>
+                <div class="vital-reading"><strong id="spo2-value">98</strong><span>%</span></div>
+                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="oxygen-bar"><div class="oxygen-scale"><span>90%</span><span>100%</span></div><div class="oxygen-track"><span id="spo2-bar"></span><i></i></div></div>
+                <div class="card-foot"><span>CONTINUOUS</span><span>LAST 30 MIN</span></div>
+              </article>
+
+              <article class="vital-card panel" data-vital="ecg">
+                <div class="vital-card-header"><span class="vital-icon violet"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10h3l2-5 4 10 2.2-5h3.8" /></svg></span><span class="vital-rank">04</span></div>
+                <div class="vital-label">ECG signal</div>
+                <div class="vital-reading ecg-reading"><strong>Good</strong></div>
+                <div class="vital-status"><span class="status-dot good"></span> Signal quality adequate</div>
+                <div class="ecg-wave"><svg viewBox="0 0 180 34" preserveAspectRatio="none" aria-label="ECG signal trace"><path d="M0 18h25l5-3 6 5 7-16 8 25 7-11 5 1h22l5-3 6 5 7-16 8 25 7-11 5 1h25l5-3 6 5 7-16 8 25 7-11 5 1h7" /></svg></div>
+                <div class="card-foot"><span>LEAD II</span><span>LIVE SIGNAL</span></div>
+              </article>
+
+              <article class="vital-card panel" data-vital="respiratoryRate">
+                <div class="vital-card-header"><span class="vital-icon amber"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v6m0 0c-1.5-2.3-3.5-3.2-5-2.5-2 1-2.2 6.8-.5 9.2C6 17 8 17 10 15.5c2 1.5 4 1.5 5.5.2 1.7-2.4 1.5-8.2-.5-9.2C13.5 5.8 11.5 6.7 10 9Z" /></svg></span><span class="vital-rank">05</span></div>
+                <div class="vital-label">Respiratory rate</div>
+                <div class="vital-reading"><strong id="respiratory-rate-value">14</strong><span>BR/MIN</span></div>
+                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="mini-chart breath-chart" aria-hidden="true"><span style="height:37%"></span><span style="height:54%"></span><span style="height:70%"></span><span style="height:48%"></span><span style="height:63%"></span><span style="height:82%"></span><span style="height:45%"></span><span style="height:60%"></span><span style="height:76%"></span><span style="height:49%"></span><span style="height:67%"></span><span style="height:85%"></span><span style="height:50%"></span><span style="height:62%"></span></div>
+                <div class="card-foot"><span>AT REST</span><span>LAST 30 MIN</span></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="section-block trends-section">
+            <div class="section-heading trend-heading">
+              <div>
+                <div class="section-kicker">PHYSIOLOGICAL DATA <span>·</span> HR + SPO₂</div>
+                <h2>Vitals over time</h2>
+              </div>
+              <div class="chart-controls">
+                <div class="range-tabs" role="group" aria-label="Trend time range">
+                  <button class="range-tab active" data-range="24H" type="button">24H</button>
+                  <button class="range-tab" data-range="7D" type="button">7D</button>
+                  <button class="range-tab" data-range="30D" type="button">30D</button>
+                </div>
+                <button class="icon-button" id="chart-menu" type="button" aria-label="Chart options">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1" /><circle cx="10" cy="10" r="1" /><circle cx="16" cy="10" r="1" /></svg>
+                </button>
+              </div>
+            </div>
+            <div class="chart-panel panel">
+              <div class="chart-legend">
+                <span><i class="legend-line heart-legend"></i> HEART RATE <strong>BPM</strong></span>
+                <span><i class="legend-line oxygen-legend"></i> SpO₂ <strong>%</strong></span>
+                <span class="chart-context" id="chart-context">LAST 24 HOURS</span>
+              </div>
+              <div class="chart-area">
+                <div class="chart-axis">
+                  <span>120</span><span>100</span><span>80</span><span>60</span><span>40</span>
+                </div>
+                <div class="chart-plot">
+                  <div class="chart-gridlines"><i></i><i></i><i></i><i></i><i></i></div>
+                  <svg class="main-chart" viewBox="0 0 780 200" preserveAspectRatio="none" role="img" aria-label="Heart rate and blood oxygen trend">
+                    <defs>
+                      <linearGradient id="heart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ff8678" stop-opacity=".18" /><stop offset="1" stop-color="#ff8678" stop-opacity="0" /></linearGradient>
+                    </defs>
+                    <path class="chart-area-fill" d="M0 112 C30 100 38 116 66 105 S105 90 132 102 S170 118 198 101 S236 80 264 96 S302 106 330 89 S368 96 396 106 S434 80 462 91 S500 105 528 87 S566 72 594 88 S632 103 660 83 S698 90 726 76 S754 80 780 69V200H0Z" />
+                    <path class="heart-line" d="M0 112 C30 100 38 116 66 105 S105 90 132 102 S170 118 198 101 S236 80 264 96 S302 106 330 89 S368 96 396 106 S434 80 462 91 S500 105 528 87 S566 72 594 88 S632 103 660 83 S698 90 726 76 S754 80 780 69" />
+                    <path class="oxygen-line" d="M0 57 C29 54 39 61 66 56 S105 50 132 55 S170 59 198 54 S236 49 264 52 S302 56 330 50 S368 52 396 55 S434 48 462 51 S500 55 528 49 S566 45 594 50 S632 55 660 48 S698 52 726 46 S754 49 780 44" />
+                    <circle class="chart-point heart-point" cx="780" cy="69" r="4" />
+                    <circle class="chart-point oxygen-point" cx="780" cy="44" r="4" />
+                  </svg>
+                  <div class="chart-x-axis" id="chart-x-axis"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>NOW</span></div>
+                </div>
+              </div>
+              <div class="chart-footer"><span><span class="chart-footer-dot"></span> VALUES SHOWN ARE SIMULATED FOR DEMONSTRATION</span><span>DISPLAYED IN MISSION ELAPSED TIME <span class="info-mark" title="All values in this prototype are simulated.">i</span></span></div>
+            </div>
+          </section>
+
+          <section class="lower-grid">
+            <div class="section-block secondary-section" id="long-term">
+              <div class="section-heading compact-heading">
+                <div>
+                  <div class="section-kicker">PRIORITY 02 + 03 <span>·</span> TRENDING</div>
+                  <h2>Health indicators</h2>
+                </div>
+                <button class="text-button" type="button" id="all-indicators">All indicators <span>↗</span></button>
+              </div>
+              <div class="indicator-list panel">
+                <div class="indicator-row">
+                  <span class="indicator-icon temperature">°</span><span class="indicator-name">Body temperature<small>THERMAL</small></span><strong id="temperature-value">36.8 <small>°C</small></strong><span class="indicator-change neutral">Stable</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon hrv">↗</span><span class="indicator-name">Heart rate variability<small>RECOVERY</small></span><strong id="hrv-value">54 <small>MS</small></strong><span class="indicator-change positive">+3.2%</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon hydration">≈</span><span class="indicator-name">Hydration status<small>FLUID BALANCE</small></span><strong id="hydration-value">Stable</strong><span class="indicator-change neutral">On track</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon bone">◌</span><span class="indicator-name">Bone mineral density<small>SKELETAL</small></span><strong id="bmd-value">−1.2 <small>%</small></strong><span class="indicator-change caution">Since baseline</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon muscle">⌁</span><span class="indicator-name">Muscle mass<small>MUSCULAR</small></span><strong id="muscle-value">−0.3 <small>%</small></strong><span class="indicator-change neutral">Since baseline</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon fluid">↟</span><span class="indicator-name">Headward fluid shift<small>FLUID REDISTRIBUTION</small></span><strong id="fluid-shift-value">Mild</strong><span class="indicator-change caution">Proxy demo</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon radiation">☼</span><span class="indicator-name">Cumulative radiation<small>MISSION DOSE · DEMO</small></span><strong id="radiation-value">128 <small>mSv</small></strong><span class="indicator-change neutral" id="radiation-reference-label">21% of demo ref.</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row">
+                  <span class="indicator-icon sleep">◷</span><span class="indicator-name">Sleep / circadian<small>LAST 24H · SIMULATED</small></span><strong id="sleep-value">6.4 <small>h</small></strong><span class="indicator-change caution" id="sleep-goal-label">Below demo goal</span><span class="indicator-chevron">›</span>
+                </div>
+                <div class="indicator-row reaction-row">
+                  <span class="indicator-icon reaction">↯</span><span class="indicator-name">Reaction-time check<small>BEHAVIORAL · OPT-IN</small></span><strong id="reaction-value">284 <small>ms</small></strong><span class="indicator-change neutral">Sample result</span><button class="reaction-test-button" id="reaction-test-button" type="button">Run check</button>
+                </div>
+                <p class="reaction-test-status" id="reaction-test-status" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+
+            <aside class="section-block alerts-section" id="alerts">
+              <div class="section-heading compact-heading">
+                <div>
+                  <div class="section-kicker">FLIGHT MEDICAL <span>·</span> ACTIVITY</div>
+                  <h2>Recent alerts <span class="alert-counter" id="alert-count">2</span></h2>
+                </div>
+                <button class="text-button" type="button" id="view-alerts">View all <span>↗</span></button>
+              </div>
+              <div class="alert-list panel" id="alert-list">
+                <article class="alert-row">
+                  <span class="alert-indicator info-alert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.2 17 16H3L10 3.2Z" /><path d="M10 8v3.5m0 2v.1" /></svg></span>
+                  <div class="alert-copy"><div><strong>Elevated HR during exercise</strong><span class="alert-time">14:32</span></div><p>Heart rate reached 142 BPM during scheduled activity.</p><span class="alert-tag">REVIEWED · DEMO</span></div>
+                </article>
+                <article class="alert-row">
+                  <span class="alert-indicator routine-alert"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5v4l2.5 1.5" /></svg></span>
+                  <div class="alert-copy"><div><strong>Hydration check-in due</strong><span class="alert-time">13:50</span></div><p>Routine fluid balance check-in is due for this shift.</p><button class="ack-button" type="button">Acknowledge <span>→</span></button></div>
+                </article>
+              </div>
+            </aside>
+          </section>
+
+          <footer class="page-footer">
+            <span><span class="footer-mark">◈</span> AstroVitals <span class="footer-divider">/</span> ODYSSEY-07</span>
+            <span>SIMULATED DATA · NOT FOR CLINICAL USE <span class="footer-divider">·</span> FLIGHT DAY 142</span>
+          </footer>
+        </div>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

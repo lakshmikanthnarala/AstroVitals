@@ -1,0 +1,16 @@
+{
+  "name": "astrovitals",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local demo backend for the AstroVitals mission health dashboard",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
