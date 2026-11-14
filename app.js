@@ -27,6 +27,10 @@ let pageZoom = 100;
 let settings = { ...DEFAULT_SETTINGS };
 let toastTimeout;
 let queuedPackets = 12;
+let lastTelemetryAt;
+let latestAlerts = [];
+let ecgFaultSimulated = false;
+const acknowledgedAiAlerts = new Set();
 let reactionTestState = "idle";
 let reactionPromptTimeout;
 let reactionPromptAt;
@@ -140,8 +144,49 @@ async function requestJson(url, options) {
 
 function setBackendStatus(message, isError = false) {
   const status = document.querySelector(".connection-status");
-  status.textContent = message;
+  const indicator = status.querySelector(".live-dot");
+  status.replaceChildren(indicator, document.createTextNode(` ${message}`));
   status.classList.toggle("backend-error", isError);
+  document.querySelector("#backend-state").textContent = isError ? "OFFLINE" : "CONNECTED";
+  document.querySelector("#backend-system-state").dataset.state = isError ? "offline" : "nominal";
+}
+
+function updateVitalStatus(id, state, message) {
+  const status = document.querySelector(`#${id}`);
+  const indicator = status.querySelector(".status-dot");
+  indicator.className = `status-dot ${state}`;
+  status.lastChild.textContent = ` ${message}`;
+}
+
+function updateTelemetryTimestamp(value) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return;
+  lastTelemetryAt = timestamp;
+  const formatted = new Intl.DateTimeFormat("en", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "UTC",
+  }).format(timestamp);
+  document.querySelector("#telemetry-received-at").textContent = `RX ${formatted}Z`;
+  for (const id of ["heart-rate-time", "blood-pressure-time", "spo2-time", "ecg-time"]) {
+    const time = document.querySelector(`#${id}`);
+    time.dateTime = new Date(timestamp).toISOString();
+    time.textContent = `${formatted}Z`;
+  }
+  updateTelemetryFreshness();
+}
+
+function updateTelemetryFreshness() {
+  const state = document.querySelector("#telemetry-state");
+  const ageLabel = document.querySelector("#telemetry-age");
+  if (!Number.isFinite(lastTelemetryAt)) {
+    state.dataset.state = "delayed";
+    ageLabel.textContent = "NO DATA";
+    return;
+  }
+  const ageSeconds = Math.max(0, Math.floor((Date.now() - lastTelemetryAt) / 1000));
+  const age = ageSeconds < 60 ? `${ageSeconds}s` : `${Math.floor(ageSeconds / 60)}m`;
+  const delayed = ageSeconds >= 60;
+  state.dataset.state = delayed ? "delayed" : "nominal";
+  ageLabel.textContent = `${delayed ? "DELAYED" : "CURRENT"} · ${age}`;
 }
 
 function renderCrew() {
@@ -210,6 +255,7 @@ function updateMissionRisk(member) {
   const bandLabel = document.querySelector("#risk-band");
   bandLabel.textContent = band.label;
   bandLabel.style.color = band.color;
+  document.querySelector("#risk-kicker").textContent = `MISSION HEALTH RISK · ${band.label.toUpperCase()}`;
   gauge.style.setProperty("--risk-score", `${scores.composite}%`);
   gauge.style.setProperty("--risk-color", band.color);
   gauge.setAttribute("aria-label", `Illustrative risk score ${scores.composite} out of 100, ${band.label}`);
@@ -243,7 +289,25 @@ function updateAiHealthStatus(member) {
     Number.isFinite(anomaly?.anomalyScore) ? `Outlier score ${anomaly.anomalyScore.toFixed(1)}%` : "Anomaly model unavailable";
   document.querySelector("#model-decision-status").textContent = decision?.modelSummary || member.status || "Unavailable";
   document.querySelector("#model-decision-rationale").textContent =
-    decision?.rationale || "Decision details unavailable";
+    member.scenarioSummary
+      ? `${decision?.rationale || ""} ${member.scenarioSummary}`.trim()
+      : decision?.rationale || "Decision details unavailable";
+
+  const modelsAvailable = Boolean(classifier?.modelVersion && anomaly?.modelVersion);
+  document.querySelector("#model-stack-state").textContent = modelsAvailable ? "ACTIVE" : "DEGRADED";
+  document.querySelector("#model-system-state").dataset.state = modelsAvailable ? "nominal" : "warning";
+  const contributorList = document.querySelector("#model-contributors");
+  const contributors = anomaly?.referenceFlags?.length
+    ? anomaly.referenceFlags
+    : classifier?.globalFeatureImportances?.slice(0, 3).map((item) =>
+      `${item.feature.replaceAll("_", " ")} · ${(item.importance * 100).toFixed(0)}% model weight`,
+    ) || [];
+  contributorList.replaceChildren();
+  for (const contributor of contributors.length ? contributors : ["No material deviation flagged"]) {
+    const item = document.createElement("span");
+    item.textContent = contributor;
+    contributorList.append(item);
+  }
 }
 
 function updateCrewPanel(member) {
@@ -268,9 +332,34 @@ function updateCrewPanel(member) {
   const [systolic, diastolic] = member.bp.split("/");
   document.querySelector("#blood-pressure-value").innerHTML = `${systolic}<span>/</span>${diastolic}`;
   document.querySelector("#spo2-value").textContent = member.spo2;
-  document.querySelector("#spo2-bar").style.width = `${(member.spo2 - 90) * 10}%`;
-  document.querySelector(".oxygen-track i").style.left = `${(member.spo2 - 90) * 10}%`;
+  const oxygenPosition = Math.min(100, Math.max(0, (member.spo2 - 90) * 10));
+  document.querySelector("#spo2-bar").style.width = `${oxygenPosition}%`;
+  document.querySelector(".oxygen-track i").style.left = `${oxygenPosition}%`;
   document.querySelector("#respiratory-rate-value").textContent = member.rr;
+  updateVitalStatus("heart-rate-status", member.hr < 50 || member.hr > 100 ? "bad" : "good",
+    member.hr < 50 || member.hr > 100 ? "Outside demo band · 50–100 BPM" : "Within demo band");
+  const bpOutOfBand = Number(systolic) < 90 || Number(systolic) > 140 || Number(diastolic) < 60 || Number(diastolic) > 90;
+  updateVitalStatus("blood-pressure-status", bpOutOfBand ? "bad" : "good",
+    bpOutOfBand ? "Outside demo band · 90–140 / 60–90" : "Within demo band");
+  updateVitalStatus("spo2-status", member.spo2 < 94 ? "bad" : "good",
+    member.spo2 < 94 ? "Below demo threshold · 94%" : "Within demo band");
+  const ecgDisconnected = ecgFaultSimulated || member.ecgSignal === "Disconnected";
+  const ecgGood = member.ecgSignal === "Good" && !ecgDisconnected;
+  const ecgState = ecgGood ? "good" : ecgDisconnected ? "bad" : "warning";
+  updateVitalStatus("ecg-status", ecgState,
+    ecgGood ? "Signal quality adequate" : ecgDisconnected ? "Sensor disconnected" : "Signal degraded · review");
+  document.querySelector("#ecg-sensor-state").dataset.state =
+    ecgGood ? "nominal" : ecgDisconnected ? "offline" : "warning";
+  document.querySelector("#ecg-sensor-state b").textContent =
+    ecgGood ? "LOCKED · GOOD" : ecgDisconnected ? "DISCONNECTED" : "DEGRADED";
+  document.querySelector("#vitals-bus-state b").textContent = "LOCKED · 3/3";
+  document.querySelector("#heart-rate-quality").textContent = "QUALITY 96% · DEMO";
+  document.querySelector("#blood-pressure-quality").textContent = "QUALITY 94% · DEMO";
+  document.querySelector("#spo2-quality").textContent = "QUALITY 98% · DEMO";
+  document.querySelector("#ecg-quality").textContent = ecgGood ? "QUALITY 97% · DEMO" : ecgDisconnected ? "NO SIGNAL" : "QUALITY DEGRADED";
+  const ecgLinkTest = document.querySelector("#ecg-link-test");
+  ecgLinkTest.textContent = ecgFaultSimulated ? "Restore ECG link" : "Run ECG link test";
+  ecgLinkTest.setAttribute("aria-pressed", String(ecgFaultSimulated));
   document.querySelector("#temperature-value").innerHTML = `${member.temp} <small>°C</small>`;
   document.querySelector("#hrv-value").innerHTML = `${member.hrv} <small>MS</small>`;
   document.querySelector("#hydration-value").textContent = member.hydration;
@@ -290,6 +379,16 @@ function updateCrewPanel(member) {
   updateMissionRisk(member);
 }
 
+document.querySelector("#ecg-link-test").addEventListener("click", () => {
+  const member = crew.find((person) => person.id === selectedCrewId);
+  if (!member) return;
+  ecgFaultSimulated = !ecgFaultSimulated;
+  updateCrewPanel(member);
+  showToast(ecgFaultSimulated
+    ? "ECG disconnect simulated locally; model readings are unchanged"
+    : "ECG link restored in the local display");
+});
+
 function cancelReactionTest() {
   if (reactionTestState === "idle") return;
   clearTimeout(reactionPromptTimeout);
@@ -302,7 +401,10 @@ function cancelReactionTest() {
 function selectCrew(id) {
   const member = crew.find((person) => person.id === id);
   if (!member) return;
-  if (selectedCrewId !== member.id) cancelReactionTest();
+  if (selectedCrewId !== member.id) {
+    cancelReactionTest();
+    ecgFaultSimulated = false;
+  }
   selectedCrewId = member.id;
   updateCrewPanel(member);
   loadTrends().catch((error) => showToast(`Could not load trends: ${error.message}`));
@@ -385,6 +487,7 @@ async function loadTrends() {
 
   const lastPoint = payload.points.at(-1);
   if (lastPoint) {
+    updateTelemetryTimestamp(lastPoint.recordedAt);
     chartSvg.querySelector(".heart-point").setAttribute("cx", "780");
     chartSvg.querySelector(".heart-point").setAttribute("cy", String(200 - ((lastPoint.heartRate - 40) / 80) * 200));
     chartSvg.querySelector(".oxygen-point").setAttribute("cx", "780");
@@ -405,6 +508,7 @@ function formatAlertTime(value) {
 }
 
 function renderAlerts(alerts) {
+  latestAlerts = alerts;
   const selectedMember = crew.find((member) => member.id === selectedCrewId);
   const aiAlert = selectedMember && selectedMember.status !== "Normal"
     ? {
@@ -412,12 +516,13 @@ function renderAlerts(alerts) {
       title: `MODEL REVIEW · ${selectedMember.status.toUpperCase()}`,
       description: selectedMember.scenarioSummary,
       occurredAt: new Date().toISOString(),
-      acknowledged: false,
+      acknowledged: acknowledgedAiAlerts.has(selectedMember.id),
       isAi: true,
       parameters: [
         `${selectedMember.hr} HR · BPM`,
+        `${selectedMember.bp} BP · mmHg`,
         `${selectedMember.spo2}% SpO₂`,
-        `${selectedMember.rr} RR · /min`,
+        `ECG ${selectedMember.ecgSignal}`,
       ],
     }
     : null;
@@ -460,8 +565,16 @@ function renderAlerts(alerts) {
       footer.className = "alert-actions";
       const status = document.createElement("span");
       status.className = "alert-ack-status";
-      status.textContent = "Awaiting acknowledgement";
+      status.textContent = alert.acknowledged ? "ACKNOWLEDGED · THIS SESSION" : "AWAITING FLIGHT CREW ACK";
       footer.append(status);
+      if (!alert.acknowledged) {
+        const acknowledge = document.createElement("button");
+        acknowledge.className = "ack-button";
+        acknowledge.type = "button";
+        acknowledge.dataset.aiAlert = selectedMember.id;
+        acknowledge.textContent = "Acknowledge for this session";
+        footer.append(acknowledge);
+      }
       copy.append(heading, time, description, metrics, footer);
     } else {
       const heading = document.createElement("div");
@@ -492,7 +605,7 @@ function renderAlerts(alerts) {
     alertList.append(row);
   }
 
-  const remaining = alerts.filter((alert) => !alert.acknowledged).length;
+  const remaining = alerts.filter((alert) => !alert.acknowledged).length + (aiAlert && !aiAlert.acknowledged ? 1 : 0);
   document.querySelector("#alert-count").textContent = String(remaining);
   document.querySelector("#nav-alert-count").textContent = String(remaining);
 }
@@ -503,6 +616,13 @@ async function loadAlerts() {
 }
 
 alertList.addEventListener("click", async (event) => {
+  const aiButton = event.target.closest("[data-ai-alert]");
+  if (aiButton) {
+    acknowledgedAiAlerts.add(aiButton.dataset.aiAlert);
+    renderAlerts(latestAlerts);
+    showToast("Model review acknowledged for this session");
+    return;
+  }
   const button = event.target.closest("[data-alert]");
   if (!button) return;
 
@@ -672,11 +792,20 @@ async function initializeDashboard() {
     updateCrewPanel(crew[0]);
     renderAlerts(alertsPayload.alerts);
     await loadTrends();
-    setBackendStatus("ALL SYSTEMS NOMINAL");
+    setBackendStatus("API CONNECTED");
   } catch (error) {
-    setBackendStatus("BACKEND UNAVAILABLE", true);
+    setBackendStatus("API OFFLINE", true);
     showToast(`Could not load dashboard data: ${error.message}`);
   }
 }
 
 initializeDashboard();
+setInterval(updateTelemetryFreshness, 10_000);
+setInterval(async () => {
+  try {
+    await requestJson("/api/health");
+    setBackendStatus("API CONNECTED");
+  } catch {
+    setBackendStatus("API OFFLINE", true);
+  }
+}, 15_000);

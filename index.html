@@ -86,14 +86,14 @@
         <header class="topbar">
           <div class="breadcrumbs">MISSIONS <span>/</span> ODYSSEY-07 <span>/</span> <strong>HEALTH OVERVIEW</strong></div>
           <div class="topbar-right">
-            <div class="connection-status"><span class="live-dot"></span> ALL SYSTEMS NOMINAL</div>
+            <div class="connection-status" aria-live="polite"><span class="live-dot"></span> BACKEND CONNECTING</div>
             <div class="ai-status panel" aria-live="polite">
-              <div class="ai-status-head">AI HEALTH MONITOR</div>
+              <div class="ai-status-head">FLIGHT MEDICAL MODEL</div>
               <div class="ai-status-grid">
-                <div><span>Predicted pattern</span><strong id="ai-status-live">Loading</strong></div>
-                <div><span>Classifier confidence</span><strong id="ai-status-quality">--</strong></div>
-                <div><span>Outlier score</span><strong id="ai-status-latency">--</strong></div>
-                <div><span>Decision</span><strong id="ai-status-anomaly">Loading</strong></div>
+                <div><span>CLASSIFICATION</span><strong id="ai-status-live">Loading</strong></div>
+                <div><span>CONFIDENCE</span><strong id="ai-status-quality">--</strong></div>
+                <div><span>ANOMALY SCORE</span><strong id="ai-status-latency">--</strong></div>
+                <div><span>DISPOSITION</span><strong id="ai-status-anomaly">Loading</strong></div>
               </div>
             </div>
             <div class="topbar-divider"></div>
@@ -118,6 +118,30 @@
             </div>
           </section>
 
+          <section class="flight-systems panel" aria-label="Flight system status">
+            <div class="systems-heading">
+              <span>FLIGHT SYSTEMS</span>
+              <div><small>SIMULATED ONBOARD TELEMETRY</small><button class="system-test-button" id="ecg-link-test" type="button" aria-pressed="false">Run ECG link test</button></div>
+            </div>
+            <div class="systems-grid">
+              <div class="system-state" id="vitals-bus-state" data-state="nominal">
+                <span class="system-indicator"></span><span><strong>BIOMETRIC BUS</strong><small>HR · BP · SpO₂</small></span><b>ACQUIRING</b>
+              </div>
+              <div class="system-state" id="ecg-sensor-state" data-state="nominal">
+                <span class="system-indicator"></span><span><strong>ECG PATCH</strong><small>LEAD II · CONTACT</small></span><b>ACQUIRING</b>
+              </div>
+              <div class="system-state" id="telemetry-state" data-state="delayed">
+                <span class="system-indicator"></span><span><strong>TELEMETRY AGE</strong><small id="telemetry-received-at">Awaiting packet</small></span><b id="telemetry-age">NO DATA</b>
+              </div>
+              <div class="system-state" id="backend-system-state" data-state="warning">
+                <span class="system-indicator"></span><span><strong>BACKEND API</strong><small>LOCAL SERVICE</small></span><b id="backend-state">CONNECTING</b>
+              </div>
+              <div class="system-state" id="model-system-state" data-state="warning">
+                <span class="system-indicator"></span><span><strong>MODEL STACK</strong><small>CLASSIFIER · OUTLIER</small></span><b id="model-stack-state">LOADING</b>
+              </div>
+            </div>
+          </section>
+
           <section class="crew-overview panel" aria-label="Selected crew member">
             <div class="crew-profile">
               <div class="large-avatar" id="selected-avatar">AM</div>
@@ -132,9 +156,9 @@
               </div>
             </div>
             <div class="profile-stat">
-              <span>LAST CHECK-IN</span>
-              <strong>2 <small>MIN AGO</small></strong>
-              <span class="stat-foot"><span class="live-dot"></span> Telemetry active</span>
+              <span>DATA ORIGIN</span>
+              <strong>ONBOARD <small>DEMO</small></strong>
+              <span class="stat-foot">Synthetic telemetry snapshot</span>
             </div>
             <div class="profile-stat profile-stat-right">
               <span>OVERALL STATUS</span>
@@ -153,7 +177,7 @@
             </div>
             <div class="intel-grid">
               <article class="risk-panel panel">
-                <div class="intel-kicker">MISSION HEALTH RISK <span>·</span> LOW</div>
+                <div class="intel-kicker" id="risk-kicker">MISSION HEALTH RISK <span>·</span> LOW</div>
                 <div class="risk-overview">
                   <div class="risk-gauge" id="risk-gauge" role="img" aria-label="Illustrative risk score">
                     <div><strong id="risk-score">12</strong><span> / 100</span></div>
@@ -215,9 +239,10 @@
               <div class="section-note"><span class="live-dot"></span> Unknown scenarios flagged for review</div>
             </div>
             <div class="unknown-grid">
-              <div class="unknown-item"><span>Known pattern model</span><strong id="model-known-pattern">Loading</strong><small id="model-known-confidence">Random Forest prediction from synthetic training data.</small></div>
-              <div class="unknown-item"><span>Outlier model</span><strong id="model-anomaly-state">Loading</strong><small id="model-anomaly-score">Isolation Forest result from synthetic training data.</small></div>
-              <div class="unknown-item"><span>Decision engine</span><strong id="model-decision-status">Loading</strong><small id="model-decision-rationale">Combines model outputs with a telemetry quality gate.</small></div>
+              <div class="unknown-item"><span>CLASSIFICATION RESULT</span><strong id="model-known-pattern">Loading</strong><small id="model-known-confidence">Random Forest prediction from synthetic training data.</small></div>
+              <div class="unknown-item"><span>ANOMALY DETECTOR</span><strong id="model-anomaly-state">Loading</strong><small id="model-anomaly-score">Isolation Forest result from synthetic training data.</small></div>
+              <div class="unknown-item"><span>DISPOSITION &amp; ALERT REASON</span><strong id="model-decision-status">Loading</strong><small id="model-decision-rationale">Combines model outputs with a telemetry quality gate.</small></div>
+              <div class="unknown-item contributors-item"><span>CONTRIBUTING PHYSIOLOGY</span><div class="model-contributors" id="model-contributors"><span>Awaiting model output</span></div><small>Model factors are review aids, not clinical findings.</small></div>
             </div>
             <p class="unknown-example" id="model-training-note">Synthetic demonstration models only. Outputs are not clinical assessments.</p>
           </section>
@@ -225,10 +250,10 @@
           <section class="section-block" id="vitals">
             <div class="section-heading">
               <div>
-                <div class="section-kicker">PRIORITY 01 <span>·</span> REAL-TIME</div>
-                <h2>Essential vitals</h2>
+                <div class="section-kicker">PRIORITY 01 <span>·</span> BIOMETRIC TELEMETRY</div>
+                <h2>Primary medical telemetry</h2>
               </div>
-              <div class="section-note"><span class="live-dot"></span> Updated just now</div>
+              <div class="section-note"><span class="local-dot"></span> Simulated snapshot · UTC timestamps</div>
             </div>
 
             <div class="vitals-grid">
@@ -236,38 +261,44 @@
                 <div class="vital-card-header"><span class="vital-icon coral"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16.3s-6.7-3.8-6.7-8.1A3.5 3.5 0 0 1 10 6a3.5 3.5 0 0 1 6.7 2.2c0 4.3-6.7 8.1-6.7 8.1Z" /><path d="M3.3 10h3l1.5-2.3 2.1 4.5 1.5-2.2h5.3" /></svg></span><span class="vital-rank">01</span></div>
                 <div class="vital-label">Heart rate</div>
                 <div class="vital-reading"><strong id="heart-rate-value">68</strong><span>BPM</span></div>
-                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="vital-status" id="heart-rate-status"><span class="status-dot good"></span> Within demo band</div>
                 <div class="sparkline-wrap"><svg class="sparkline coral-line" viewBox="0 0 180 34" preserveAspectRatio="none" aria-label="Heart rate trend"><path class="spark-fill" d="M0 22 C12 20 16 24 26 19 S41 16 48 19 S61 22 70 14 S83 16 91 17 S102 21 112 13 S127 13 136 16 S149 12 158 15 S170 17 180 9V34H0Z" /><path class="spark-stroke" d="M0 22 C12 20 16 24 26 19 S41 16 48 19 S61 22 70 14 S83 16 91 17 S102 21 112 13 S127 13 136 16 S149 12 158 15 S170 17 180 9" /></svg></div>
-                <div class="card-foot"><span>RESTING</span><span>LAST 30 MIN</span></div>
+                <div class="card-foot"><span>RESTING</span><span>DEMO BAND 50–100 BPM</span></div>
+                <div class="telemetry-meta"><span id="heart-rate-quality">SIGNAL · --</span><time id="heart-rate-time">Awaiting packet</time></div>
               </article>
 
               <article class="vital-card panel" data-vital="bloodPressure">
                 <div class="vital-card-header"><span class="vital-icon blue"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 15.5h14M5 13V9m5 4V5m5 8v-6" /><circle cx="5" cy="7" r="1.5" /><circle cx="10" cy="3" r="1.5" /><circle cx="15" cy="5" r="1.5" /></svg></span><span class="vital-rank">02</span></div>
                 <div class="vital-label">Blood pressure</div>
                 <div class="vital-reading bp-reading"><strong id="blood-pressure-value">118<span>/</span>76</strong><span>MMHG</span></div>
-                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="vital-status" id="blood-pressure-status"><span class="status-dot good"></span> Within demo band</div>
                 <div class="mini-chart bp-chart" aria-hidden="true"><span style="height:34%"></span><span style="height:51%"></span><span style="height:43%"></span><span style="height:60%"></span><span style="height:46%"></span><span style="height:70%"></span><span style="height:54%"></span><span style="height:63%"></span><span style="height:44%"></span><span style="height:76%"></span><span style="height:58%"></span><span style="height:68%"></span><span style="height:48%"></span><span style="height:56%"></span></div>
-                <div class="card-foot"><span>SEATED</span><span>LAST 30 MIN</span></div>
+                <div class="card-foot"><span>SEATED</span><span>DEMO BAND 90–140 / 60–90</span></div>
+                <div class="telemetry-meta"><span id="blood-pressure-quality">SIGNAL · --</span><time id="blood-pressure-time">Awaiting packet</time></div>
               </article>
 
               <article class="vital-card panel" data-vital="spo2">
                 <div class="vital-card-header"><span class="vital-icon mint"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17s-6-5.3-6-9.3A3.7 3.7 0 0 1 10 5a3.7 3.7 0 0 1 6 2.7C16 11.7 10 17 10 17Z" /><path d="M6 10h2l1.2-2.3 2 4.6 1.3-2.3H15" /></svg></span><span class="vital-rank">03</span></div>
                 <div class="vital-label">Blood oxygen <span class="sub-label">SpO₂</span></div>
                 <div class="vital-reading"><strong id="spo2-value">98</strong><span>%</span></div>
-                <div class="vital-status"><span class="status-dot good"></span> Within configured band</div>
+                <div class="vital-status" id="spo2-status"><span class="status-dot good"></span> Within demo band</div>
                 <div class="oxygen-bar"><div class="oxygen-scale"><span>90%</span><span>100%</span></div><div class="oxygen-track"><span id="spo2-bar"></span><i></i></div></div>
-                <div class="card-foot"><span>CONTINUOUS</span><span>LAST 30 MIN</span></div>
+                <div class="card-foot"><span>CONTINUOUS</span><span>DEMO BAND ≥94%</span></div>
+                <div class="telemetry-meta"><span id="spo2-quality">SIGNAL · --</span><time id="spo2-time">Awaiting packet</time></div>
               </article>
 
               <article class="vital-card panel" data-vital="ecg">
                 <div class="vital-card-header"><span class="vital-icon violet"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10h3l2-5 4 10 2.2-5h3.8" /></svg></span><span class="vital-rank">04</span></div>
                 <div class="vital-label">ECG signal</div>
                 <div class="vital-reading ecg-reading"><strong>Good</strong></div>
-                <div class="vital-status"><span class="status-dot good"></span> Signal quality adequate</div>
+                <div class="vital-status" id="ecg-status"><span class="status-dot good"></span> Signal quality adequate</div>
                 <div class="ecg-wave"><svg viewBox="0 0 180 34" preserveAspectRatio="none" aria-label="ECG signal trace"><path d="M0 18h25l5-3 6 5 7-16 8 25 7-11 5 1h22l5-3 6 5 7-16 8 25 7-11 5 1h25l5-3 6 5 7-16 8 25 7-11 5 1h7" /></svg></div>
-                <div class="card-foot"><span>LEAD II</span><span>LIVE SIGNAL</span></div>
+                <div class="card-foot"><span>LEAD II</span><span>DEMO WAVEFORM</span></div>
+                <div class="telemetry-meta"><span id="ecg-quality">SIGNAL · --</span><time id="ecg-time">Awaiting packet</time></div>
               </article>
 
+            </div>
+            <div class="extended-telemetry">
               <article class="vital-card panel" data-vital="respiratoryRate">
                 <div class="vital-card-header"><span class="vital-icon amber"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v6m0 0c-1.5-2.3-3.5-3.2-5-2.5-2 1-2.2 6.8-.5 9.2C6 17 8 17 10 15.5c2 1.5 4 1.5 5.5.2 1.7-2.4 1.5-8.2-.5-9.2C13.5 5.8 11.5 6.7 10 9Z" /></svg></span><span class="vital-rank">05</span></div>
                 <div class="vital-label">Respiratory rate</div>
