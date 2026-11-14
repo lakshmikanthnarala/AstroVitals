@@ -721,8 +721,8 @@ function createApp({ dbPath = process.env.DB_PATH || path.join(__dirname, "data"
 if (require.main === module) {
   const app = createApp();
   const port = Number(process.env.PORT || 3000);
-  const server = app.listen(port, "127.0.0.1", () => {
-    console.log(`AstroVitals demo server listening at http://127.0.0.1:${port}`);
+  const server = app.listen(port, "0.0.0.0", () => {
+    console.log(`AstroVitals demo server listening on all interfaces at port ${port}`);
   });
 
   const shutdown = () => {

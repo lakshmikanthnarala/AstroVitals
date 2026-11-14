@@ -24,6 +24,7 @@ test("prefers the project virtualenv when starting the Python backend", () => {
 
   assert.equal(calls[0].command, path.join(__dirname, "..", ".venv", "Scripts", "python.exe"));
   assert.deepEqual(calls[0].args.slice(0, 2), ["-m", "uvicorn"]);
+  assert.deepEqual(calls[0].args.slice(-4), ["--host", "0.0.0.0", "--port", "3000"]);
   child.emit("close", 0, null);
   assert.deepEqual(exits, [0]);
 });

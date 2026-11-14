@@ -32,7 +32,7 @@ The launcher automatically prefers this project's `.venv` Python when available,
 
 By default, the launcher tries FastAPI first and falls back to the Node.js compatibility backend if Python or its dependencies are unavailable or the Python server exits with an error. Set `ASTROVITALS_BACKEND=python` or `ASTROVITALS_BACKEND=node` to require one backend. The Node.js fallback serves the dashboard and core demo API but does not provide FastAPI's scikit-learn inference endpoints.
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). SQLite is created at `data/astrovitals.sqlite`; set `DB_PATH` to override the database location.
+The backend listens on all network interfaces so it can also be reached through container port forwarding or from other devices on your network. Open [http://127.0.0.1:3000](http://127.0.0.1:3000) on the same machine, or use the machine's network address from another device. This demo has no authentication; only run it on networks you trust. SQLite is created at `data/astrovitals.sqlite`; set `DB_PATH` to override the database location.
 
 ## API
 

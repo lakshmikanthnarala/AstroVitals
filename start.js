@@ -103,7 +103,7 @@ function createLauncher({
     const { command, prefix } = pythonCommands[index];
     launchChild(
       command,
-      [...prefix, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", port],
+      [...prefix, "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", port],
       (error) => {
         log(`Python backend attempt using ${command} failed: ${error.message}`);
         startPython(index + 1);
