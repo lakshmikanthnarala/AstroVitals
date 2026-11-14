@@ -4,10 +4,27 @@ const toast = document.querySelector("#toast");
 const chartSvg = document.querySelector(".main-chart");
 const reactionTestButton = document.querySelector("#reaction-test-button");
 const reactionTestStatus = document.querySelector("#reaction-test-status");
+const addPersonDialog = document.querySelector("#add-person-dialog");
+const addPersonForm = document.querySelector("#add-person-form");
+const addPersonError = document.querySelector("#add-person-error");
+const settingsDialog = document.querySelector("#settings-dialog");
+const settingsForm = document.querySelector("#settings-form");
+const appShell = document.querySelector(".app-shell");
+const zoomOutButton = document.querySelector("#zoom-out");
+const zoomValue = document.querySelector("#zoom-value");
+const zoomInButton = document.querySelector("#zoom-in");
+const DEFAULT_SETTINGS = Object.freeze({
+  defaultRange: "24H",
+  compactLayout: false,
+  reducedMotion: false,
+});
+const SETTINGS_STORAGE_KEY = "astrovitals.settings.v1";
 let crew = [];
 let environment;
 let selectedCrewId;
 let currentRange = "24H";
+let pageZoom = 100;
+let settings = { ...DEFAULT_SETTINGS };
 let toastTimeout;
 let queuedPackets = 12;
 let reactionTestState = "idle";
@@ -15,11 +32,101 @@ let reactionPromptTimeout;
 let reactionPromptAt;
 let reactionCrewId;
 
+function updatePageZoom() {
+  appShell.style.zoom = `${pageZoom}%`;
+  zoomValue.textContent = `${pageZoom}%`;
+  zoomOutButton.disabled = pageZoom <= 70;
+  zoomInButton.disabled = pageZoom >= 130;
+}
+
+zoomOutButton.addEventListener("click", () => {
+  pageZoom = Math.max(70, pageZoom - 10);
+  updatePageZoom();
+});
+zoomValue.addEventListener("click", () => {
+  pageZoom = 100;
+  updatePageZoom();
+});
+zoomInButton.addEventListener("click", () => {
+  pageZoom = Math.min(130, pageZoom + 10);
+  updatePageZoom();
+});
+updatePageZoom();
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("visible");
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => toast.classList.remove("visible"), 2600);
+}
+
+function readSettings() {
+  try {
+    const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (stored === null) return { ...DEFAULT_SETTINGS };
+
+    const parsed = JSON.parse(stored);
+    if (!parsed || !["24H", "7D", "30D"].includes(parsed.defaultRange)
+      || typeof parsed.compactLayout !== "boolean"
+      || typeof parsed.reducedMotion !== "boolean") {
+      throw new Error("Saved settings are invalid");
+    }
+
+    return {
+      defaultRange: parsed.defaultRange,
+      compactLayout: parsed.compactLayout,
+      reducedMotion: parsed.reducedMotion,
+    };
+  } catch (error) {
+    showToast(`Could not load saved settings: ${error.message}`);
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function updateTrendRangeControls(range) {
+  document.querySelectorAll(".range-tab").forEach((tab) => {
+    const selected = tab.dataset.range === range;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-pressed", String(selected));
+  });
+  document.querySelector("#chart-context").textContent = `LAST ${range === "24H" ? "24 HOURS" : range === "7D" ? "7 DAYS" : "30 DAYS"}`;
+  document.querySelector("#chart-x-axis").replaceChildren(
+    ...timeLabels[range].map((label) => {
+      const span = document.createElement("span");
+      span.textContent = label;
+      return span;
+    }),
+  );
+}
+
+function applySettings(nextSettings) {
+  settings = nextSettings;
+  document.documentElement.classList.toggle("compact-layout", settings.compactLayout);
+  document.documentElement.classList.toggle("reduce-motion", settings.reducedMotion);
+  currentRange = settings.defaultRange;
+  updateTrendRangeControls(currentRange);
+  if (selectedCrewId) {
+    loadTrends().catch((error) => showToast(`Could not load trends: ${error.message}`));
+  }
+}
+
+function saveSettings(nextSettings) {
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(nextSettings));
+  } catch (error) {
+    showToast(`Could not save settings: ${error.message}`);
+    return false;
+  }
+  applySettings(nextSettings);
+  return true;
+}
+
+function openSettings() {
+  if (settingsDialog.open) return;
+  document.querySelector("#settings-default-range").value = settings.defaultRange;
+  document.querySelector("#settings-compact-layout").checked = settings.compactLayout;
+  document.querySelector("#settings-reduced-motion").checked = settings.reducedMotion;
+  settingsDialog.showModal();
 }
 
 async function requestJson(url, options) {
@@ -59,7 +166,7 @@ function renderCrew() {
     button.append(avatar, details);
     crewList.append(button);
   }
-  document.querySelector(".crew-label span").textContent = String(crew.length).padStart(2, "0");
+  document.querySelector("#crew-count").textContent = String(crew.length).padStart(2, "0");
 }
 
 function clampRisk(value) {
@@ -117,6 +224,28 @@ function updateMissionRisk(member) {
   }
 }
 
+function updateAiHealthStatus(member) {
+  const classifier = member.classifier;
+  const anomaly = member.anomaly;
+  const decision = member.decisionEngine;
+  document.querySelector("#ai-status-live").textContent = classifier?.predictedScenario || "Unavailable";
+  document.querySelector("#ai-status-quality").textContent =
+    Number.isFinite(classifier?.confidence) ? `${classifier.confidence.toFixed(1)}%` : "--";
+  document.querySelector("#ai-status-latency").textContent =
+    Number.isFinite(anomaly?.anomalyScore) ? `${anomaly.anomalyScore.toFixed(1)}%` : "--";
+  document.querySelector("#ai-status-anomaly").textContent = member.status || "Unavailable";
+  document.querySelector("#model-known-pattern").textContent = classifier?.predictedScenario || "Unavailable";
+  document.querySelector("#model-known-confidence").textContent =
+    Number.isFinite(classifier?.confidence) ? `${classifier.confidence.toFixed(1)}% classifier confidence` : "Classifier unavailable";
+  document.querySelector("#model-anomaly-state").textContent =
+    anomaly?.isAnomalous ? "Outlier flagged" : anomaly ? "No outlier flag" : "Unavailable";
+  document.querySelector("#model-anomaly-score").textContent =
+    Number.isFinite(anomaly?.anomalyScore) ? `Outlier score ${anomaly.anomalyScore.toFixed(1)}%` : "Anomaly model unavailable";
+  document.querySelector("#model-decision-status").textContent = decision?.modelSummary || member.status || "Unavailable";
+  document.querySelector("#model-decision-rationale").textContent =
+    decision?.rationale || "Decision details unavailable";
+}
+
 function updateCrewPanel(member) {
   document.querySelectorAll(".crew-member").forEach((button) => {
     const selected = button.dataset.crew === member.id;
@@ -127,6 +256,14 @@ function updateCrewPanel(member) {
   document.querySelector("#crew-name").textContent = member.name;
   document.querySelector("#crew-role").textContent = member.role;
   document.querySelector("#crew-callsign").textContent = member.callsign;
+  document.querySelector(".ecg-reading strong").textContent = member.ecgSignal;
+  const statusText = document.querySelector(".status-text");
+  const statusIcon = document.createElement("span");
+  statusIcon.className = "status-check";
+  statusIcon.textContent = member.status === "Normal" ? "✓" : "!";
+  statusText.replaceChildren(statusIcon, ` ${member.status}`);
+  document.querySelector(".profile-stat-right .stat-foot").textContent =
+    member.status === "Normal" ? "No flagged demo readings" : "Review simulated readings";
   document.querySelector("#heart-rate-value").textContent = member.hr;
   const [systolic, diastolic] = member.bp.split("/");
   document.querySelector("#blood-pressure-value").innerHTML = `${systolic}<span>/</span>${diastolic}`;
@@ -149,6 +286,7 @@ function updateCrewPanel(member) {
   document.querySelector("#sleep-goal-label").textContent =
     member.sleepHours >= 7 ? "At demo goal" : "Below demo goal";
   document.querySelector("#reaction-value").innerHTML = `${member.reactionMs} <small>ms</small>`;
+  updateAiHealthStatus(member);
   updateMissionRisk(member);
 }
 
@@ -168,6 +306,7 @@ function selectCrew(id) {
   selectedCrewId = member.id;
   updateCrewPanel(member);
   loadTrends().catch((error) => showToast(`Could not load trends: ${error.message}`));
+  loadAlerts().catch((error) => showToast(`Could not load alerts: ${error.message}`));
 }
 
 crewList.addEventListener("click", (event) => {
@@ -175,11 +314,56 @@ crewList.addEventListener("click", (event) => {
   if (button) selectCrew(button.dataset.crew);
 });
 
+function openAddPersonDialog() {
+  addPersonError.textContent = "";
+  addPersonDialog.showModal();
+}
+
+document.querySelector("#add-person-button").addEventListener("click", openAddPersonDialog);
+document.querySelector("#add-person-sidebar-button").addEventListener("click", openAddPersonDialog);
+document.querySelector("#close-add-person").addEventListener("click", () => addPersonDialog.close());
+document.querySelector("#cancel-add-person").addEventListener("click", () => addPersonDialog.close());
+
+addPersonForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  addPersonError.textContent = "";
+  const submitButton = addPersonForm.querySelector('button[type="submit"]');
+  const formValues = Object.fromEntries(new FormData(addPersonForm).entries());
+  for (const field of ["hr", "spo2", "rr", "temp", "hrv", "bmd", "muscle"]) {
+    formValues[field] = Number(formValues[field]);
+  }
+
+  submitButton.disabled = true;
+  try {
+    const payload = await requestJson("/api/crew", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formValues),
+    });
+    crew = [...crew, payload.crew].sort((first, second) => first.callsign.localeCompare(second.callsign));
+    renderCrew();
+    addPersonForm.reset();
+    addPersonDialog.close();
+    selectCrew(payload.crew.id);
+    showToast(`${payload.crew.name} added to mission crew`);
+  } catch (error) {
+    addPersonError.textContent = `Could not add person: ${error.message}`;
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
 const timeLabels = {
   "24H": ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "NOW"],
   "7D": ["DAY 1", "DAY 2", "DAY 3", "DAY 4", "DAY 5", "DAY 6", "TODAY"],
   "30D": ["−30D", "−25D", "−20D", "−15D", "−10D", "−5D", "TODAY"],
 };
+
+settings = readSettings();
+document.documentElement.classList.toggle("compact-layout", settings.compactLayout);
+document.documentElement.classList.toggle("reduce-motion", settings.reducedMotion);
+currentRange = settings.defaultRange;
+updateTrendRangeControls(currentRange);
 
 function makeChartPath(points, valueForPoint) {
   if (!points.length) return "";
@@ -210,16 +394,8 @@ async function loadTrends() {
 
 document.querySelectorAll(".range-tab").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".range-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
     currentRange = button.dataset.range;
-    document.querySelector("#chart-context").textContent = `LAST ${currentRange === "24H" ? "24 HOURS" : currentRange === "7D" ? "7 DAYS" : "30 DAYS"}`;
-    document.querySelector("#chart-x-axis").replaceChildren(
-      ...timeLabels[currentRange].map((label) => {
-        const span = document.createElement("span");
-        span.textContent = label;
-        return span;
-      }),
-    );
+    updateTrendRangeControls(currentRange);
     loadTrends().catch((error) => showToast(`Could not load trends: ${error.message}`));
   });
 });
@@ -229,37 +405,88 @@ function formatAlertTime(value) {
 }
 
 function renderAlerts(alerts) {
+  const selectedMember = crew.find((member) => member.id === selectedCrewId);
+  const aiAlert = selectedMember && selectedMember.status !== "Normal"
+    ? {
+      id: `ai-model-review-${selectedMember.id}`,
+      title: `MODEL REVIEW · ${selectedMember.status.toUpperCase()}`,
+      description: selectedMember.scenarioSummary,
+      occurredAt: new Date().toISOString(),
+      acknowledged: false,
+      isAi: true,
+      parameters: [
+        `${selectedMember.hr} HR · BPM`,
+        `${selectedMember.spo2}% SpO₂`,
+        `${selectedMember.rr} RR · /min`,
+      ],
+    }
+    : null;
+
+  const visibleAlerts = aiAlert ? [aiAlert, ...alerts] : alerts;
   alertList.replaceChildren();
-  for (const alert of alerts) {
+  for (const alert of visibleAlerts) {
     const row = document.createElement("article");
-    row.className = `alert-row${alert.acknowledged ? " acknowledged" : ""}`;
+    row.className = `alert-row${alert.acknowledged ? " acknowledged" : ""}${alert.isAi ? " ai-alert-row" : ""}`;
     const indicator = document.createElement("span");
-    indicator.className = `alert-indicator ${alert.acknowledged ? "info-alert" : "routine-alert"}`;
-    indicator.textContent = alert.acknowledged ? "!" : "◷";
+    indicator.className = `alert-indicator ${alert.isAi ? "ai-alert-indicator" : alert.acknowledged ? "info-alert" : "routine-alert"}`;
+    indicator.textContent = alert.isAi ? "!" : alert.acknowledged ? "!" : "◷";
     const copy = document.createElement("div");
-    copy.className = "alert-copy";
-    const heading = document.createElement("div");
-    const title = document.createElement("strong");
-    title.textContent = alert.title;
-    const time = document.createElement("span");
-    time.className = "alert-time";
-    time.textContent = formatAlertTime(alert.occurredAt);
-    heading.append(title, time);
-    const description = document.createElement("p");
-    description.textContent = alert.description;
-    copy.append(heading, description);
-    if (alert.acknowledged) {
+    copy.className = `alert-copy${alert.isAi ? " ai-alert-copy" : ""}`;
+
+    if (alert.isAi) {
+      const heading = document.createElement("div");
+      heading.className = "alert-summary";
+      const title = document.createElement("strong");
+      title.textContent = alert.title;
       const tag = document.createElement("span");
       tag.className = "alert-tag";
-      tag.textContent = "REVIEWED · DEMO";
-      copy.append(tag);
+      tag.textContent = alert.title.includes("CRITICAL") ? "CRITICAL · REVIEW" : "MODEL REVIEW";
+      heading.append(title, tag);
+      const time = document.createElement("span");
+      time.className = "alert-time";
+      time.textContent = "NOW";
+      const description = document.createElement("p");
+      description.className = "alert-body";
+      description.textContent = alert.description;
+      const metrics = document.createElement("div");
+      metrics.className = "alert-parameters";
+      alert.parameters.forEach((value) => {
+        const metric = document.createElement("span");
+        metric.className = "alert-parameter";
+        metric.textContent = value;
+        metrics.append(metric);
+      });
+      const footer = document.createElement("div");
+      footer.className = "alert-actions";
+      const status = document.createElement("span");
+      status.className = "alert-ack-status";
+      status.textContent = "Awaiting acknowledgement";
+      footer.append(status);
+      copy.append(heading, time, description, metrics, footer);
     } else {
-      const button = document.createElement("button");
-      button.className = "ack-button";
-      button.type = "button";
-      button.dataset.alert = alert.id;
-      button.innerHTML = "Acknowledge <span>→</span>";
-      copy.append(button);
+      const heading = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = alert.title;
+      const time = document.createElement("span");
+      time.className = "alert-time";
+      time.textContent = formatAlertTime(alert.occurredAt);
+      heading.append(title, time);
+      const description = document.createElement("p");
+      description.textContent = alert.description;
+      copy.append(heading, description);
+      if (alert.acknowledged) {
+        const tag = document.createElement("span");
+        tag.className = "alert-tag";
+        tag.textContent = "REVIEWED · DEMO";
+        copy.append(tag);
+      } else {
+        const button = document.createElement("button");
+        button.className = "ack-button";
+        button.type = "button";
+        button.dataset.alert = alert.id;
+        button.innerHTML = "Acknowledge <span>→</span>";
+        copy.append(button);
+      }
     }
     row.append(indicator, copy);
     alertList.append(row);
@@ -383,7 +610,38 @@ reactionTestButton.addEventListener("click", () => {
 document.querySelector("#chart-menu").addEventListener("click", () => showToast("Trend chart uses simulated demonstration data"));
 document.querySelector("#all-indicators").addEventListener("click", () => showToast("All prioritized mission health indicators are shown"));
 document.querySelector("#view-alerts").addEventListener("click", () => showToast("Showing recent demonstration alerts"));
-document.querySelector(".settings-link").addEventListener("click", () => showToast("Settings are not available in this demo"));
+document.querySelector(".settings-link").addEventListener("click", openSettings);
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key === ",") {
+    event.preventDefault();
+    openSettings();
+  }
+});
+document.querySelector("#close-settings").addEventListener("click", () => settingsDialog.close());
+document.querySelector("#cancel-settings").addEventListener("click", () => settingsDialog.close());
+document.querySelector("#reset-settings").addEventListener("click", () => {
+  if (!saveSettings({ ...DEFAULT_SETTINGS })) return;
+  settingsDialog.close();
+  showToast("Settings reset to defaults");
+});
+settingsDialog.addEventListener("click", (event) => {
+  if (event.target === settingsDialog) settingsDialog.close();
+});
+settingsForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const nextSettings = {
+    defaultRange: document.querySelector("#settings-default-range").value,
+    compactLayout: document.querySelector("#settings-compact-layout").checked,
+    reducedMotion: document.querySelector("#settings-reduced-motion").checked,
+  };
+  if (!["24H", "7D", "30D"].includes(nextSettings.defaultRange)) {
+    showToast("Choose a valid default trend range");
+    return;
+  }
+  if (!saveSettings(nextSettings)) return;
+  settingsDialog.close();
+  showToast("Settings saved");
+});
 document.querySelector(".avatar-button").addEventListener("click", () => showToast("Mission Control operator"));
 
 document.querySelector("#current-date").textContent = new Intl.DateTimeFormat("en", {

@@ -35,29 +35,34 @@
         <nav class="main-nav">
           <a class="nav-item active" href="#overview" aria-current="page">
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="5" height="6" rx="1" /><rect x="12" y="3" width="5" height="4" rx="1" /><rect x="12" y="10" width="5" height="7" rx="1" /><rect x="3" y="12" width="5" height="5" rx="1" /></svg>
-            Overview
+            Mission Overview
           </a>
           <a class="nav-item" href="#mission-risk">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 17 6v4.5c0 3.2-2.2 5.7-7 7-4.8-1.3-7-3.8-7-7V6l7-3.5Z" /><path d="m7 10 2 2 4-4" /></svg>
-            Mission risk
+            Mission Risk
           </a>
           <a class="nav-item" href="#vitals">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10h3l2-5 4 10 2.2-5H17.5" /></svg>
-            Vital signs
+            Live Telemetry
           </a>
           <a class="nav-item" href="#long-term">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16V9m6 7V4m6 12v-5M2 17.5h16" /></svg>
-            Long-term health
+            Long-term Health
           </a>
           <a class="nav-item" href="#alerts">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.2 17 16H3L10 3.2Z" /><path d="M10 8v3.5m0 2v.1" /></svg>
-            Alerts <span class="nav-count" id="nav-alert-count">2</span>
+            Alerts &amp; Anomalies <span class="nav-count" id="nav-alert-count">2</span>
+          </a>
+          <a class="nav-item" href="#ai-diagnostics">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3.5h4m-2-2v2m5 12.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Zm-3.5-3 1 2 2 1" /></svg>
+            AI Diagnostics
           </a>
         </nav>
 
         <div class="sidebar-divider"></div>
-        <div class="nav-label crew-label">MISSION CREW <span>03</span></div>
+        <div class="nav-label crew-label">MISSION CREW <span id="crew-count">03</span></div>
         <div class="crew-list" id="crew-list" aria-label="Select astronaut"></div>
+        <button class="add-crew-sidebar" id="add-person-sidebar-button" type="button">+ Add person</button>
 
         <div class="sidebar-bottom">
           <div class="mission-card">
@@ -70,9 +75,9 @@
             <div class="mission-progress"><span></span></div>
             <div class="progress-label"><span>MISSION TIMELINE</span><span>72%</span></div>
           </div>
-          <button class="settings-link" type="button" aria-label="Settings">
+          <button class="settings-link" type="button" aria-label="Settings" aria-keyshortcuts="Control+Comma Meta+Comma">
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3" /><path d="m16.1 12.5 1.1 1.8-2.2 2.2-1.8-1.1c-.5.3-1 .5-1.5.6l-.5 2h-3l-.5-2c-.5-.1-1-.3-1.5-.6l-1.8 1.1-2.2-2.2 1.1-1.8a6 6 0 0 1-.6-1.5l-2-.5v-3l2-.5c.1-.5.3-1 .6-1.5L2.2 3.7 4.4 1.5l1.8 1.1c.5-.3 1-.5 1.5-.6l.5-2h3l.5 2c.5.1 1 .3 1.5.6l1.8-1.1 2.2 2.2-1.1 1.8c.3.5.5 1 .6 1.5l2 .5v3l-2 .5c-.1.5-.3 1-.6 1.5Z" transform="translate(0 1)" /></svg>
-            Settings <span>⌘ ,</span>
+            Settings <span>Ctrl / ⌘ ,</span>
           </button>
         </div>
       </aside>
@@ -82,6 +87,15 @@
           <div class="breadcrumbs">MISSIONS <span>/</span> ODYSSEY-07 <span>/</span> <strong>HEALTH OVERVIEW</strong></div>
           <div class="topbar-right">
             <div class="connection-status"><span class="live-dot"></span> ALL SYSTEMS NOMINAL</div>
+            <div class="ai-status panel" aria-live="polite">
+              <div class="ai-status-head">AI HEALTH MONITOR</div>
+              <div class="ai-status-grid">
+                <div><span>Predicted pattern</span><strong id="ai-status-live">Loading</strong></div>
+                <div><span>Classifier confidence</span><strong id="ai-status-quality">--</strong></div>
+                <div><span>Outlier score</span><strong id="ai-status-latency">--</strong></div>
+                <div><span>Decision</span><strong id="ai-status-anomaly">Loading</strong></div>
+              </div>
+            </div>
             <div class="topbar-divider"></div>
             <div class="mission-clock"><span>MISSION ELAPSED</span><strong>142<span>D</span> 08<span>H</span> 36<span>M</span></strong></div>
             <button class="avatar-button" type="button" aria-label="Mission operator profile">MC</button>
@@ -95,10 +109,13 @@
               <h1>Health overview<span class="heading-period">.</span></h1>
               <p class="page-subtitle">Crew status and physiological trends for <strong>Odyssey-07</strong></p>
             </div>
-            <button class="export-button" id="export-button" type="button">
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3-3m-3 3L7 9M4 13v3h12v-3" /></svg>
-              Export report
-            </button>
+            <div class="heading-actions">
+              <button class="export-button add-person-button" id="add-person-button" type="button">+ Add person</button>
+              <button class="export-button" id="export-button" type="button">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3-3m-3 3L7 9M4 13v3h12v-3" /></svg>
+                Export report
+              </button>
+            </div>
           </section>
 
           <section class="crew-overview panel" aria-label="Selected crew member">
@@ -136,35 +153,35 @@
             </div>
             <div class="intel-grid">
               <article class="risk-panel panel">
-                <div class="intel-kicker">MULTI-FACTOR RISK MODEL <span>·</span> ILLUSTRATIVE ONLY</div>
+                <div class="intel-kicker">MISSION HEALTH RISK <span>·</span> LOW</div>
                 <div class="risk-overview">
                   <div class="risk-gauge" id="risk-gauge" role="img" aria-label="Illustrative risk score">
                     <div><strong id="risk-score">12</strong><span> / 100</span></div>
                   </div>
                   <div class="risk-summary">
                     <strong id="risk-band">Low</strong>
-                    <span>Rule-based demo composite</span>
-                    <small>Not a clinical assessment or flight rule.</small>
+                    <span>Illustrative composite score</span>
+                    <small>The score is a software-generated demonstration, not a clinical assessment.</small>
                   </div>
                 </div>
                 <div class="risk-factors" aria-label="Risk model factors">
                   <div class="risk-factor">
-                    <span>Physiology <small>HR · SpO₂ · temp · ECG</small></span>
+                    <span>Physiological indicators <small>HR · SpO₂ · temp · ECG</small></span>
                     <div class="risk-track"><i id="physiology-risk-bar"></i></div>
                     <strong id="physiology-risk-value">0</strong>
                   </div>
                   <div class="risk-factor">
-                    <span>Cabin &amp; radiation <small id="environment-inputs">CO₂ 820 ppm · 128 mSv</small></span>
+                    <span>Cabin environment <small id="environment-inputs">CO₂ 820 ppm · 128 mSv</small></span>
                     <div class="risk-track"><i id="environment-risk-bar"></i></div>
                     <strong id="environment-risk-value">22</strong>
                   </div>
                   <div class="risk-factor">
-                    <span>Recovery <small>Sleep · reaction</small></span>
+                    <span>Recovery indicators <small>Sleep · reaction</small></span>
                     <div class="risk-track"><i id="recovery-risk-bar"></i></div>
                     <strong id="recovery-risk-value">16</strong>
                   </div>
                 </div>
-                <p class="intel-disclaimer">Weighted 45% physiology, 35% environment, 20% recovery. Demo thresholds only; not a flight rule.</p>
+                <p class="intel-disclaimer">Contributing factors are shown for review. A low overall mission risk must never suppress a critical medical alert.</p>
               </article>
 
               <article class="ops-panel panel">
@@ -187,6 +204,22 @@
                 <p class="intel-disclaimer">No telemetry is sent or stored off-device in this prototype.</p>
               </article>
             </div>
+          </section>
+
+          <section class="section-block unknown-anomaly panel" id="ai-diagnostics" aria-label="Unknown anomaly detection panel">
+            <div class="section-heading compact-heading">
+              <div>
+                <div class="section-kicker">UNSEEN ANOMALY DETECTION <span>·</span> ACTIVE</div>
+                <h2>Pattern recognition engine</h2>
+              </div>
+              <div class="section-note"><span class="live-dot"></span> Unknown scenarios flagged for review</div>
+            </div>
+            <div class="unknown-grid">
+              <div class="unknown-item"><span>Known pattern model</span><strong id="model-known-pattern">Loading</strong><small id="model-known-confidence">Random Forest prediction from synthetic training data.</small></div>
+              <div class="unknown-item"><span>Outlier model</span><strong id="model-anomaly-state">Loading</strong><small id="model-anomaly-score">Isolation Forest result from synthetic training data.</small></div>
+              <div class="unknown-item"><span>Decision engine</span><strong id="model-decision-status">Loading</strong><small id="model-decision-rationale">Combines model outputs with a telemetry quality gate.</small></div>
+            </div>
+            <p class="unknown-example" id="model-training-note">Synthetic demonstration models only. Outputs are not clinical assessments.</p>
           </section>
 
           <section class="section-block" id="vitals">
@@ -361,6 +394,79 @@
         </div>
       </main>
     </div>
+    <div class="zoom-control" role="group" aria-label="Page zoom">
+      <button class="zoom-button" id="zoom-out" type="button" aria-label="Zoom out">−</button>
+      <button class="zoom-value" id="zoom-value" type="button" aria-label="Reset zoom to 100%" aria-live="polite">100%</button>
+      <button class="zoom-button" id="zoom-in" type="button" aria-label="Zoom in">+</button>
+    </div>
+    <dialog class="add-person-dialog" id="add-person-dialog" aria-labelledby="add-person-title">
+      <form id="add-person-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="section-kicker">MISSION CREW <span>·</span> SIMULATED DATA</div>
+            <h2 id="add-person-title">Add a person</h2>
+          </div>
+          <button class="dialog-close" id="close-add-person" type="button" aria-label="Close">×</button>
+        </div>
+        <div class="person-form-grid">
+          <label>Name<input name="name" type="text" maxlength="80" autocomplete="name" required /></label>
+          <label>Role<input name="role" type="text" maxlength="40" required /></label>
+          <label>Callsign<input name="callsign" type="text" maxlength="20" pattern="[A-Za-z0-9-]+" required /></label>
+          <label>Heart rate (BPM)<input name="hr" type="number" min="20" max="250" step="1" required /></label>
+          <label>Blood pressure (mmHg)<input name="bp" type="text" inputmode="numeric" pattern="[0-9]{2,3}/[0-9]{2,3}" placeholder="120/80" required /></label>
+          <label>Blood oxygen (SpO₂ %)<input name="spo2" type="number" min="0" max="100" step="1" required /></label>
+          <label>Respiratory rate (breaths/min)<input name="rr" type="number" min="1" max="80" step="1" required /></label>
+          <label>Temperature (°C)<input name="temp" type="number" min="25" max="45" step="0.1" required /></label>
+          <label>HRV (ms)<input name="hrv" type="number" min="1" max="300" step="1" required /></label>
+          <label>Hydration status<input name="hydration" type="text" maxlength="40" placeholder="Stable" required /></label>
+          <label>Bone density change (%)<input name="bmd" type="number" min="-100" max="100" step="0.1" required /></label>
+          <label>Muscle mass change (%)<input name="muscle" type="number" min="-100" max="100" step="0.1" required /></label>
+        </div>
+        <p class="form-error" id="add-person-error" role="alert"></p>
+        <p class="form-disclaimer">Values are illustrative demo data, not clinical measurements.</p>
+        <div class="dialog-actions">
+          <button class="dialog-cancel" id="cancel-add-person" type="button">Cancel</button>
+          <button class="dialog-submit" type="submit">Add person</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+      <form id="settings-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="section-kicker">PREFERENCES <span>·</span> THIS BROWSER</div>
+            <h2 id="settings-title">Dashboard settings</h2>
+          </div>
+          <button class="dialog-close" id="close-settings" type="button" aria-label="Close settings">×</button>
+        </div>
+        <label class="settings-range" for="settings-default-range">
+          Default trend range
+          <select id="settings-default-range" name="defaultRange">
+            <option value="24H">Last 24 hours</option>
+            <option value="7D">Last 7 days</option>
+            <option value="30D">Last 30 days</option>
+          </select>
+          <small>Sets the trend chart range when this dashboard opens.</small>
+        </label>
+        <fieldset class="settings-options">
+          <legend>Display</legend>
+          <label class="settings-toggle">
+            <input id="settings-compact-layout" name="compactLayout" type="checkbox" />
+            <span><strong>Compact layout</strong><small>Reduce spacing to fit more dashboard content on screen.</small></span>
+          </label>
+          <label class="settings-toggle">
+            <input id="settings-reduced-motion" name="reducedMotion" type="checkbox" />
+            <span><strong>Reduce motion</strong><small>Minimize transitions and smooth scrolling.</small></span>
+          </label>
+        </fieldset>
+        <div class="dialog-actions settings-actions">
+          <button class="dialog-cancel" id="reset-settings" type="button">Reset defaults</button>
+          <span></span>
+          <button class="dialog-cancel" id="cancel-settings" type="button">Cancel</button>
+          <button class="dialog-submit" type="submit">Save settings</button>
+        </div>
+      </form>
+    </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </body>
 </html>

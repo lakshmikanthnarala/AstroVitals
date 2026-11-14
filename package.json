@@ -2,13 +2,13 @@
   "name": "astrovitals",
   "version": "1.0.0",
   "private": true,
-  "description": "Local demo backend for the AstroVitals mission health dashboard",
+  "description": "Local AstroVitals dashboard with a FastAPI backend and Node compatibility server",
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test"
+    "start": "node start.js",
+    "test": "node --test && python -m pytest"
   },
   "dependencies": {
     "express": "^5.1.0"
