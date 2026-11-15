@@ -6,25 +6,13 @@ AstroVitals is a bioastronautics dashboard prototype for exploring simulated cre
 
 Import this repository into Vercel and deploy it with the project root as the Root Directory. No build command, output directory, or environment variables are required. Vercel serves the dashboard files and routes `/api/*` requests to the Node.js function in `api/[...route].js`.
 
-The deployed function uses the Node.js compatibility backend and in-memory SQLite. Changes made through the demo dashboard are temporary and can reset when the function restarts or scales to another instance. The Python/scikit-learn backend is for local use and is not part of this Vercel deployment. This prototype does not use a persistent database or transmit data to an external service.
+The deployed function uses in-memory SQLite. Changes made through the demo dashboard are temporary and can reset when the function restarts or scales to another instance. This prototype does not use a persistent database or transmit data to an external service.
 
-The Python/FastAPI backend stores crew readings, trends, alerts, simulated telemetry packets, and local contact drafts in SQLite. Its AI endpoints run a scikit-learn Random Forest classifier and Isolation Forest anomaly detector, trained at startup on a deterministic synthetic dataset. The Node.js fallback exposes the same API routes but uses a clearly labeled rule-based demo classifier and threshold detector instead of scikit-learn. Both implementations are demonstration code only: labels, scores, thresholds, and outputs are not medically validated and must not be used for health decisions. The frontend's mission-risk score is a separate illustrative calculation. Queued packets and delayed-contact drafts are stored locally only; no data is transmitted to Earth or any external service. A NASA OSDR/GeneLab link is a public-catalog reference, not a live integration.
+The Node.js API stores crew readings, trends, alerts, simulated telemetry packets, and local contact drafts in SQLite. Its AI endpoints use a rule-based demo classifier and threshold detector. All labels, scores, and thresholds are illustrative, are not medically validated, and must not be used for health decisions. The frontend's mission-risk score is a separate illustrative calculation. Queued packets and delayed-contact drafts are stored locally only; no data is transmitted to Earth or any external service. A NASA OSDR/GeneLab link is a public-catalog reference, not a live integration.
 
 ## Run locally
 
-Requires Python 3.10 or newer. Node.js 22.13 or newer is used for the local Node.js backend and `npm` scripts.
-
-```sh
-python -m venv .venv
-```
-
-Activate the virtual environment and install the Python dependencies for the full FastAPI backend:
-
-```sh
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
+Requires Node.js 22.13 or newer.
 
 Start the app with:
 
@@ -32,11 +20,7 @@ Start the app with:
 npm start
 ```
 
-The launcher automatically prefers this project's `.venv` Python when available, so activating it is optional for `npm start`.
-
-The FastAPI application is exposed as `main:app` for deployment tools that scan for a root-level entrypoint. Its implementation is in `backend/main.py`; `backend.main:app` is also a valid import target.
-
-By default, the launcher tries FastAPI first and falls back to the Node.js compatibility backend if Python or its dependencies are unavailable or the Python server exits with an error. Set `ASTROVITALS_BACKEND=python` or `ASTROVITALS_BACKEND=node` to require one backend. The fallback implements the documented API, but its rule-based demo analysis is not equivalent to the Python scikit-learn models.
+`npm start` runs the Node.js API directly; no Python or FastAPI entrypoint is required.
 
 The backend listens on all network interfaces so it can also be reached through container port forwarding or from other devices on your network. Open [http://127.0.0.1:3000](http://127.0.0.1:3000) on the same machine, or use the machine's network address from another device. This demo has no authentication; only run it on networks you trust. SQLite is created at `data/astrovitals.sqlite`; set `DB_PATH` to override the database location.
 
@@ -58,6 +42,6 @@ The backend listens on all network interfaces so it can also be reached through 
 - `GET /api/contact-requests` and `POST /api/contact-requests` - list or schedule a local-only contact draft (`crewId`, `message`, optional `delayMinutes` from 0 to 1440)
 - `POST /api/contact-requests/:id/cancel` - cancel a local contact draft (safe to repeat)
 
-Run the FastAPI tests with `python -m pytest`. After activating the virtual environment, `npm test` runs both the FastAPI tests and legacy Node API tests.
+Run the API tests with `npm test`.
 
 All space-health values, model training labels, thresholds, scores, and the reaction-time check are illustrative demo data only. They are not validated medical guidance or actual NASA/mission telemetry. No real clinical or astronaut dataset was supplied, so model performance on real people or flight telemetry is unknown.
