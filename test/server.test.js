@@ -75,6 +75,29 @@ test("serves the seeded crew as simulated demo data", () => {
   assert.equal(response.body.crew[0].reactionMs, 284);
 });
 
+test("serves OSD-575 serum CRP as study data, separate from simulated vitals", () => {
+  const response = callHandler(app.locals.apiHandlers.getOsd575Study);
+
+  assert.equal(response.body.studyId, "OSD-575");
+  assert.equal(response.body.dataMode, "public-study-data");
+  assert.equal(response.body.analyte, "C-reactive protein (CRP)");
+  assert.equal(response.body.unit, "pg/mL");
+  assert.equal(response.body.samples.length, 28);
+  assert.deepEqual(
+    [...new Set(response.body.samples.map((sample) => sample.participant))],
+    ["C001", "C002", "C003", "C004"],
+  );
+  assert.ok(response.body.samples.every((sample) => sample.crp > 0));
+  assert.ok(["C001", "C002", "C003", "C004"].every(
+    (participant) => response.body.samples.filter((sample) => sample.participant === participant).length === 7,
+  ));
+  assert.equal(
+    response.body.samples.find((sample) => sample.participant === "C001" && sample.timepoint === "L-92").crp,
+    18385000,
+  );
+  assert.match(response.body.source, /OSD-575/);
+});
+
 test("adds a person with persisted vitals and an initial trend point", () => {
   const details = {
     name: "Nia Long",

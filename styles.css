@@ -204,6 +204,20 @@ button { color: inherit; }
 .chart-footnote { display: flex; justify-content: space-between; gap: 8px; padding-top: 9px; margin-top: 9px; border-top: 1px solid #2a303c; font-size: 7px; }
 .amber-dot { display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--amber); }
 .alerts-card { display: flex; min-height: 282px; flex-direction: column; }
+.study-card { padding: 14px; margin-top: 14px; }
+.study-card .study-heading-copy { display: grid; gap: 4px; }
+.study-participant-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font: 600 8px "JetBrains Mono", monospace; }
+.study-participant-label select { min-width: 82px; padding: 7px; border: 1px solid #303541; border-radius: 3px; background: var(--surface); color: var(--text); font: 600 9px "JetBrains Mono", monospace; }
+.study-samples { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 9px; }
+.study-sample { min-width: 0; padding: 10px; border: 1px solid #292f3b; border-radius: 4px; background: #111720; }
+.study-sample-heading { display: grid; gap: 7px; }
+.study-sample-heading strong { color: var(--cyan); font: 700 10px "JetBrains Mono", monospace; }
+.study-sample-heading span { overflow-wrap: anywhere; color: var(--text); font: 600 9px "JetBrains Mono", monospace; }
+.study-sample-bar { overflow: hidden; height: 4px; margin-top: 12px; border-radius: 4px; background: #343a46; }
+.study-sample-bar span { display: block; height: 100%; border-radius: inherit; background: var(--violet); }
+.study-footnote { display: flex; justify-content: space-between; gap: 10px; padding-top: 10px; margin-top: 12px; border-top: 1px solid #2a303c; color: var(--muted); font: 600 8px "JetBrains Mono", monospace; }
+.study-footnote a { color: var(--cyan); text-decoration: none; }
+.study-footnote a:hover { text-decoration: underline; }
 .log-badge { padding: 4px 5px; border-radius: 3px; background: var(--surface); font-size: 7px; }
 .alert-list { display: grid; flex: 1; align-content: start; gap: 7px; }
 .alert-item { display: flex; gap: 9px; padding: 9px; border: 1px solid #292f3b; border-radius: 4px; background: #111720; }
@@ -408,6 +422,7 @@ button { color: inherit; }
   .operator-name { display: none; }
   .overview-lower { grid-template-columns: minmax(0, 1fr); }
   .alerts-card { min-height: 240px; }
+  .study-samples { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .dossier-grid { grid-template-columns: minmax(0, 1fr); }
   .dossier-card { min-height: 0; }
   .vectors-card { gap: 4px; }
@@ -454,6 +469,13 @@ button { color: inherit; }
   .crew-avatar { flex-basis: 41px; width: 41px; height: 41px; }
   .crew-vitals strong { font-size: 15px; }
   .overview-lower { gap: 9px; margin-top: 12px; }
+  .study-card { padding: 10px; margin-top: 9px; }
+  .study-card > .panel-heading { align-items: flex-start; }
+  .study-card > .panel-heading > div { align-items: flex-start; }
+  .study-participant-label { align-items: flex-start; flex-direction: column; }
+  .study-samples { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .study-sample { padding: 8px; }
+  .study-footnote { flex-direction: column; font-size: 7px; }
   .chart-card, .alerts-card { padding: 10px; }
   .panel-heading h2 { font-size: 13px; }
   .chart-legend { flex-direction: column; align-items: flex-start; gap: 5px; }

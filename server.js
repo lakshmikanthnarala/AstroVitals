@@ -4,6 +4,8 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const { randomUUID } = require("node:crypto");
 
+const OSD575_CRP_DATA = require("./data/osd-575-crp.json");
+
 const DEMO_ENVIRONMENT = {
   co2Ppm: 820,
   radiationMsv: 128,
@@ -528,6 +530,19 @@ function createApiHandlers(db) {
         aiMode: "rule-based-demo-fallback",
       });
     },
+    getOsd575Study(_request, response) {
+      response.json({
+        studyId: OSD575_CRP_DATA.studyId,
+        studyTitle: OSD575_CRP_DATA.studyTitle,
+        assay: OSD575_CRP_DATA.assay,
+        analyte: OSD575_CRP_DATA.analyte,
+        unit: OSD575_CRP_DATA.unit,
+        source: OSD575_CRP_DATA.source,
+        sourceFile: OSD575_CRP_DATA.sourceFile,
+        samples: OSD575_CRP_DATA.samples,
+        dataMode: "public-study-data",
+      });
+    },
     aiStatus(_request, response) {
       response.json({
         status: "ready",
@@ -933,6 +948,7 @@ function createApp({ dbPath = process.env.DB_PATH || path.join(__dirname, "data"
   app.locals.apiHandlers = createApiHandlers(db);
 
   app.get("/api/health", app.locals.apiHandlers.health);
+  app.get("/api/studies/osd-575", app.locals.apiHandlers.getOsd575Study);
   app.get("/api/ai/status", app.locals.apiHandlers.aiStatus);
   app.post("/api/ai/analyze", app.locals.apiHandlers.analyzeTelemetry);
   app.get("/api/crew", app.locals.apiHandlers.listCrew);

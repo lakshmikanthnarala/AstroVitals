@@ -10,6 +10,8 @@ const packetList = document.querySelector("#packet-list");
 const contactList = document.querySelector("#contact-list");
 const contactRequestForm = document.querySelector("#contact-request-form");
 const queuePacketButton = document.querySelector("#queue-packet-button");
+const studyParticipantSelect = document.querySelector("#osd575-participant");
+const studySamples = document.querySelector("#osd575-samples");
 const namespace = "http://www.w3.org/2000/svg";
 
 let crew = [];
@@ -17,6 +19,7 @@ let environment;
 let alerts = [];
 let packets = [];
 let contactRequests = [];
+let osd575Study;
 let selectedCrewId;
 let toastTimeout;
 
@@ -112,6 +115,48 @@ function createCrewCard(member) {
   );
   card.append(heading, vitals, waveform, footer);
   return card;
+}
+
+function renderOsd575Samples() {
+  if (!osd575Study) return;
+  const participant = studyParticipantSelect.value;
+  const samples = osd575Study.samples.filter((sample) => sample.participant === participant);
+  const maxConcentration = Math.max(...samples.map((sample) => sample.crp));
+  studySamples.replaceChildren();
+
+  for (const sample of samples) {
+    const point = element("article", "study-sample");
+    const header = element("div", "study-sample-heading");
+    header.append(
+      element("strong", "", sample.timepoint),
+      element("span", "", `${sample.crp.toLocaleString()} ${osd575Study.unit}`),
+    );
+    const bar = element("div", "study-sample-bar");
+    const fill = element("span");
+    fill.style.width = `${(sample.crp / maxConcentration) * 100}%`;
+    fill.setAttribute("aria-hidden", "true");
+    bar.append(fill);
+    point.append(header, bar);
+    studySamples.append(point);
+  }
+}
+
+async function loadOsd575Study() {
+  const payload = await requestJson("/api/studies/osd-575");
+  if (!payload || !Array.isArray(payload.samples) || !payload.samples.length) {
+    throw new Error("The API returned no OSD-575 sample data.");
+  }
+  osd575Study = payload;
+  const participants = [...new Set(payload.samples.map((sample) => sample.participant))];
+  studyParticipantSelect.replaceChildren(...participants.map((participant) => {
+    const option = element("option", "", participant);
+    option.value = participant;
+    return option;
+  }));
+  studyParticipantSelect.disabled = false;
+  document.querySelector("#osd575-source-label").textContent =
+    `${payload.studyId} · ${payload.assay} · ${payload.analyte} (${payload.unit})`;
+  renderOsd575Samples();
 }
 
 function renderCrew() {
@@ -591,6 +636,8 @@ document.querySelector("#actions").addEventListener("click", (event) => {
   if (button) showToast(button.dataset.action);
 });
 
+studyParticipantSelect.addEventListener("change", renderOsd575Samples);
+
 async function initializeDashboard() {
   try {
     const [crewPayload, alertPayload] = await Promise.all([requestJson("/api/crew"), requestJson("/api/alerts")]);
@@ -608,6 +655,9 @@ async function initializeDashboard() {
     crewGrid.replaceChildren(element("div", "crew-empty", `Could not load mission data: ${error.message}`));
     showToast(`Could not load dashboard data: ${error.message}`);
   }
+  loadOsd575Study().catch((error) => {
+    studySamples.replaceChildren(element("div", "loading-state", `Could not load OSD-575 study data: ${error.message}`));
+  });
 }
 
 initializeDashboard();

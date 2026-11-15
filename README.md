@@ -8,7 +8,7 @@ Import this repository into Vercel and deploy it with the project root as the Ro
 
 The deployed function uses in-memory SQLite. Changes made through the demo dashboard are temporary and can reset when the function restarts or scales to another instance. This prototype does not use a persistent database or transmit data to an external service.
 
-The Node.js API stores crew readings, trends, alerts, simulated telemetry packets, and local contact drafts in SQLite. Its AI endpoints use a rule-based demo classifier and threshold detector. All labels, scores, and thresholds are illustrative, are not medically validated, and must not be used for health decisions. The frontend's mission-risk score is a separate illustrative calculation. Queued packets and delayed-contact drafts are stored locally only; no data is transmitted to Earth or any external service. A NASA OSDR/GeneLab link is a public-catalog reference, not a live integration.
+The Node.js API stores crew readings, trends, alerts, simulated telemetry packets, and local contact drafts in SQLite. Its AI endpoints use a rule-based demo classifier and threshold detector. All labels, scores, and thresholds are illustrative, are not medically validated, and must not be used for health decisions. The frontend's mission-risk score is a separate illustrative calculation. Queued packets and delayed-contact drafts are stored locally only; no data is transmitted to Earth or any external service. The dashboard also includes a small, locally bundled CRP concentration subset from NASA OSDR study OSD-575; it is separate from simulated crew telemetry and is not mapped to the fictional crew profiles.
 
 ## Run locally
 
@@ -27,6 +27,7 @@ The backend listens on all network interfaces so it can also be reached through 
 ## API
 
 - `GET /api/health` - server status and data mode
+- `GET /api/studies/osd-575` - locally bundled serum CRP sample measurements from NASA OSD-575
 - `GET /api/ai/status` - model names, versions, and synthetic training-set size
 - `POST /api/ai/analyze` - run model inference on a validated demo telemetry snapshot
 - `GET /api/ai/scenarios` or `/api/scenarios` - representative scenario catalog
@@ -44,4 +45,4 @@ The backend listens on all network interfaces so it can also be reached through 
 
 Run the API tests with `npm test`.
 
-All space-health values, model training labels, thresholds, scores, and the reaction-time check are illustrative demo data only. They are not validated medical guidance or actual NASA/mission telemetry. No real clinical or astronaut dataset was supplied, so model performance on real people or flight telemetry is unknown.
+The crew vitals, model training labels, thresholds, scores, and reaction-time check are illustrative demo data only. OSD-575 contains serum assay measurements, not heart rate or oxygen saturation, and is not used to replace or infer those vitals. Its displayed CRP subset represents coded study participants and sampling timepoints; it is research data, not a clinical assessment. See the [NASA OSDR OSD-575 study page](https://osdr.nasa.gov/bio/repo/data/studies/OSD-575) for the full dataset and study context. Model performance on real people or flight telemetry is unknown.
