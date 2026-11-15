@@ -34,6 +34,8 @@ npm start
 
 The launcher automatically prefers this project's `.venv` Python when available, so activating it is optional for `npm start`.
 
+The FastAPI application is exposed as `main:app` for deployment tools that scan for a root-level entrypoint. Its implementation is in `backend/main.py`; `backend.main:app` is also a valid import target.
+
 By default, the launcher tries FastAPI first and falls back to the Node.js compatibility backend if Python or its dependencies are unavailable or the Python server exits with an error. Set `ASTROVITALS_BACKEND=python` or `ASTROVITALS_BACKEND=node` to require one backend. The fallback implements the documented API, but its rule-based demo analysis is not equivalent to the Python scikit-learn models.
 
 The backend listens on all network interfaces so it can also be reached through container port forwarding or from other devices on your network. Open [http://127.0.0.1:3000](http://127.0.0.1:3000) on the same machine, or use the machine's network address from another device. This demo has no authentication; only run it on networks you trust. SQLite is created at `data/astrovitals.sqlite`; set `DB_PATH` to override the database location.
