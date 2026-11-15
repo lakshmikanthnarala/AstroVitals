@@ -23,3 +23,12 @@ test("initializes the Vercel API with simulated demo health data", () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.dataMode, "simulated-demo");
 });
+
+test("normalizes Vercel API paths with or without the function prefix", () => {
+  for (const route of ["/api/health", "/api/crew", "/api/crew/AM/trends?range=24H"]) {
+    assert.equal(app.normalizeApiPath(route), route);
+  }
+  for (const route of ["/health", "/crew", "/crew/AM/trends?range=24H"]) {
+    assert.equal(app.normalizeApiPath(route), `/api${route}`);
+  }
+});
