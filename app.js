@@ -6,11 +6,17 @@ const addPersonError = document.querySelector("#add-person-error");
 const fleetView = document.querySelector("#fleet");
 const clinicalView = document.querySelector("#clinical");
 const alertList = document.querySelector("#alert-list");
+const packetList = document.querySelector("#packet-list");
+const contactList = document.querySelector("#contact-list");
+const contactRequestForm = document.querySelector("#contact-request-form");
+const queuePacketButton = document.querySelector("#queue-packet-button");
 const namespace = "http://www.w3.org/2000/svg";
 
 let crew = [];
 let environment;
 let alerts = [];
+let packets = [];
+let contactRequests = [];
 let selectedCrewId;
 let toastTimeout;
 
@@ -230,6 +236,7 @@ function openCrew(id) {
   updateClinicalProfile(member);
   setView("clinical");
   loadTrends(member).catch((error) => showToast(`Could not load crew trends: ${error.message}`));
+  loadLocalActions(member).catch((error) => showToast(`Could not load local action queue: ${error.message}`));
 }
 
 function formatAlertTime(value) {
@@ -270,6 +277,74 @@ async function loadAlerts() {
   const payload = await requestJson("/api/alerts");
   alerts = payload.alerts;
   renderAlerts();
+}
+
+function renderLocalActions() {
+  const memberPackets = packets.filter((packet) => packet.crewId === selectedCrewId);
+  packetList.replaceChildren();
+  if (!memberPackets.length) {
+    packetList.append(element("li", "", "No health snapshots queued for this crew member."));
+  }
+  for (const packet of memberPackets) {
+    const item = element("li");
+    const copy = element("span");
+    copy.append(
+      element("strong", "", `HEALTH SNAPSHOT · ${packet.acknowledged ? "REVIEWED LOCALLY" : "QUEUED LOCALLY"}`),
+      element("span", "", `Stored ${formatAlertTime(packet.queuedAt)} · not transmitted`),
+    );
+    item.append(copy);
+    if (!packet.acknowledged) {
+      const button = element("button", "", "MARK REVIEWED");
+      button.type = "button";
+      button.dataset.packet = packet.id;
+      item.append(button);
+    }
+    packetList.append(item);
+  }
+
+  const memberRequests = contactRequests.filter((request) => request.crewId === selectedCrewId);
+  contactList.replaceChildren();
+  if (!memberRequests.length) {
+    contactList.append(element("li", "", "No local contact drafts for this crew member."));
+  }
+  for (const request of memberRequests) {
+    const item = element("li");
+    const copy = element("span");
+    copy.append(
+      element("strong", "", `${request.status === "cancelled-local" ? "CANCELLED" : "SCHEDULED"} · ${request.delayMinutes} MIN`),
+      element("span", "", `${request.message} · due ${formatAlertTime(request.scheduledFor)} · local only`),
+    );
+    item.append(copy);
+    if (request.status === "scheduled-local") {
+      const button = element("button", "", "CANCEL");
+      button.type = "button";
+      button.dataset.contactRequest = request.id;
+      item.append(button);
+    }
+    contactList.append(item);
+  }
+}
+
+async function loadLocalActions(member) {
+  const [packetPayload, contactPayload] = await Promise.all([
+    requestJson("/api/packets"),
+    requestJson("/api/contact-requests"),
+  ]);
+  if (selectedCrewId !== member.id) return;
+  packets = packetPayload.packets;
+  contactRequests = contactPayload.contactRequests;
+  renderLocalActions();
+}
+
+async function scheduleLocalContactRequest(request) {
+  await requestJson("/api/contact-requests", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  if (selectedCrewId === request.crewId) {
+    await loadLocalActions(crew.find((member) => member.id === request.crewId));
+  }
 }
 
 crewGrid.addEventListener("click", (event) => {
@@ -332,14 +407,32 @@ document.querySelector("#acknowledge-all").addEventListener("click", async (even
   }
 });
 
-document.querySelector("#dispatch-note").addEventListener("click", () => {
-  showToast("Surgeon notes are a local-only demo; no message was sent.");
+document.querySelector("#dispatch-note").addEventListener("click", async () => {
+  const member = crew.find((person) => person.id === selectedCrewId);
+  if (!member) {
+    showToast("Select a crew member before queuing a local surgeon note.");
+    return;
+  }
+  try {
+    await scheduleLocalContactRequest({
+      crewId: member.id,
+      message: "Review request queued from the fleet alert log.",
+      delayMinutes: 0,
+    });
+    showToast("Surgeon review draft saved locally; nothing was transmitted.");
+  } catch (error) {
+    showToast(`Could not save local review draft: ${error.message}`);
+  }
 });
 document.querySelector("#sync-button").addEventListener("click", async (event) => {
   event.currentTarget.disabled = true;
   try {
     await requestJson("/api/health");
-    await Promise.all([loadAlerts(), selectedCrewId ? loadTrends(crew.find((member) => member.id === selectedCrewId)) : Promise.resolve()]);
+    const member = crew.find((person) => person.id === selectedCrewId);
+    await Promise.all([
+      loadAlerts(),
+      member ? Promise.all([loadTrends(member), loadLocalActions(member)]) : Promise.resolve(),
+    ]);
     setText("connection-label", "BIO-MONITOR BUS ACTIVE");
     showToast("Local demo telemetry synchronized.");
   } catch (error) {
@@ -358,6 +451,86 @@ document.querySelector("#audio-button").addEventListener("click", (event) => {
   showToast(enabled ? "Audio communications enabled in the local display." : "Audio communications muted in the local display.");
 });
 document.querySelector("#mute-button").addEventListener("click", () => showToast("Audio is not connected in this local demo."));
+document.querySelector("#compose-contact-request").addEventListener("click", () => {
+  document.querySelector("#contact-message").focus();
+});
+
+queuePacketButton.addEventListener("click", async () => {
+  const member = crew.find((person) => person.id === selectedCrewId);
+  if (!member) {
+    showToast("Select a crew member before queuing a telemetry snapshot.");
+    return;
+  }
+  queuePacketButton.disabled = true;
+  try {
+    await requestJson("/api/packets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ crewId: member.id }),
+    });
+    await loadLocalActions(member);
+    showToast("Simulated health snapshot stored locally; not transmitted.");
+  } catch (error) {
+    showToast(`Could not queue health snapshot: ${error.message}`);
+  } finally {
+    queuePacketButton.disabled = false;
+  }
+});
+
+packetList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-packet]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    await requestJson(`/api/packets/${encodeURIComponent(button.dataset.packet)}/acknowledge`, { method: "POST" });
+    const member = crew.find((person) => person.id === selectedCrewId);
+    if (member) await loadLocalActions(member);
+    showToast("Packet marked reviewed locally.");
+  } catch (error) {
+    button.disabled = false;
+    showToast(`Could not update packet: ${error.message}`);
+  }
+});
+
+contactList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-contact-request]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    await requestJson(`/api/contact-requests/${encodeURIComponent(button.dataset.contactRequest)}/cancel`, { method: "POST" });
+    const member = crew.find((person) => person.id === selectedCrewId);
+    if (member) await loadLocalActions(member);
+    showToast("Local contact draft cancelled.");
+  } catch (error) {
+    button.disabled = false;
+    showToast(`Could not cancel local draft: ${error.message}`);
+  }
+});
+
+contactRequestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const member = crew.find((person) => person.id === selectedCrewId);
+  if (!member) {
+    showToast("Select a crew member before saving a local contact draft.");
+    return;
+  }
+  const submitButton = contactRequestForm.querySelector('button[type="submit"]');
+  const values = Object.fromEntries(new FormData(contactRequestForm).entries());
+  submitButton.disabled = true;
+  try {
+    await scheduleLocalContactRequest({
+      crewId: member.id,
+      message: values.message,
+      delayMinutes: Number(values.delayMinutes),
+    });
+    contactRequestForm.reset();
+    showToast("Delayed-contact draft saved locally; nothing was transmitted.");
+  } catch (error) {
+    showToast(`Could not save local contact draft: ${error.message}`);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
 
 document.querySelector("#add-person-button").addEventListener("click", () => {
   addPersonError.textContent = "";

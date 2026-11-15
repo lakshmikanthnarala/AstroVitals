@@ -7,7 +7,10 @@ from pydantic import ValidationError
 from starlette.responses import FileResponse
 
 from backend.main import (
+    ContactRequestCreate,
     CrewCreate,
+    Database,
+    PacketCreate,
     TelemetryAnalysis,
     _body_limit_response,
     _validation_error_response,
@@ -150,6 +153,55 @@ def test_alert_acknowledgement_is_idempotent_and_handles_missing_ids(app):
     assert second["alert"]["acknowledged"] is True
     with pytest.raises(HTTPException, match="404"):
         acknowledge("missing")
+
+
+def test_packet_queue_and_contact_requests_persist_as_local_actions(app):
+    queue_packet = endpoint(app, "/api/packets", "POST")
+    packet = queue_packet(PacketCreate(crewId="am"))
+    packet_id = packet["packet"]["id"]
+
+    assert packet["packet"]["crewId"] == "AM"
+    assert packet["packet"]["packetType"] == "health-summary"
+    assert packet["packet"]["payload"]["dataMode"] == "simulated-demo"
+    assert endpoint(app, "/api/packets")()["packets"][0]["id"] == packet_id
+    acknowledged = endpoint(app, "/api/packets/{packet_id}/acknowledge", "POST")(packet_id)
+    assert acknowledged["packet"]["acknowledged"] is True
+    assert endpoint(app, "/api/packets/{packet_id}/acknowledge", "POST")(packet_id)["packet"]["acknowledged"]
+
+    schedule_request = endpoint(app, "/api/contact-requests", "POST")
+    request = schedule_request(ContactRequestCreate(
+        crewId="AM",
+        message="  Review the synthetic readings  ",
+        delayMinutes=15,
+    ))
+    request_id = request["contactRequest"]["id"]
+    assert request["contactRequest"]["message"] == "Review the synthetic readings"
+    assert request["contactRequest"]["status"] == "scheduled-local"
+    assert request["externalDelivery"] is False
+    assert endpoint(app, "/api/contact-requests")()["contactRequests"][0]["id"] == request_id
+
+    cancel_request = endpoint(app, "/api/contact-requests/{request_id}/cancel", "POST")
+    cancelled = cancel_request(request_id)
+    assert cancelled["contactRequest"]["status"] == "cancelled-local"
+    assert cancel_request(request_id)["contactRequest"]["status"] == "cancelled-local"
+    with pytest.raises(HTTPException, match="404"):
+        cancel_request("missing")
+
+    reopened = Database(app.state.database.path)
+    with reopened.connection() as connection:
+        assert connection.execute("SELECT id FROM packets WHERE id = ?", (packet_id,)).fetchone()
+        persisted_request = connection.execute(
+            "SELECT status FROM contact_requests WHERE id = ?",
+            (request_id,),
+        ).fetchone()
+    assert persisted_request["status"] == "cancelled-local"
+
+
+def test_packet_and_contact_requests_reject_unknown_crew_and_invalid_input(app):
+    with pytest.raises(HTTPException, match="404"):
+        endpoint(app, "/api/packets", "POST")(PacketCreate(crewId="UNKNOWN"))
+    with pytest.raises(ValidationError):
+        ContactRequestCreate(crewId="AM", message="Review", delayMinutes=1441)
 
 
 def test_client_error_shapes_for_invalid_json_and_large_bodies():

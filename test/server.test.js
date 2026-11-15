@@ -168,6 +168,39 @@ test("classifies crew telemetry against the scenario library and exposes scenari
   assert.ok(libraryResponse.body.scenarios.some((scenario) => scenario.id === "SC06"));
 });
 
+test("provides an explicitly rule-based AI fallback API", () => {
+  const statusResponse = callHandler(app.locals.apiHandlers.aiStatus);
+  const analysisResponse = callHandler(app.locals.apiHandlers.analyzeTelemetry, {
+    body: {
+      hr: 112,
+      bp: "118/76",
+      spo2: 86,
+      rr: 25,
+      temp: 36.9,
+      hrv: 31,
+    },
+  });
+  const invalidResponse = callHandler(app.locals.apiHandlers.analyzeTelemetry, {
+    body: {
+      hr: "112",
+      bp: "118/76",
+      spo2: 86,
+      rr: 25,
+      temp: 36.9,
+      hrv: 31,
+    },
+  });
+
+  assert.equal(statusResponse.body.mode, "rule-based-demo-fallback");
+  assert.equal(statusResponse.body.trainingSamples, 0);
+  assert.equal(statusResponse.body.clinicalUse, false);
+  assert.equal(analysisResponse.statusCode, 200);
+  assert.equal(analysisResponse.body.clinicalUse, false);
+  assert.match(analysisResponse.body.classifier.modelName, /Rule-based/);
+  assert.match(analysisResponse.body.anomaly.modelName, /Threshold-based/);
+  assert.equal(invalidResponse.statusCode, 400);
+});
+
 test("persists an alert acknowledgement and handles unknown alerts", () => {
   const response = callHandler(app.locals.apiHandlers.acknowledgeAlert, {
     params: { id: "alert-hydration-checkin" },
@@ -184,6 +217,50 @@ test("persists an alert acknowledgement and handles unknown alerts", () => {
     true,
   );
   assert.equal(missingResponse.statusCode, 404);
+});
+
+test("persists local packets and delayed contact requests", () => {
+  const packetResponse = callHandler(app.locals.apiHandlers.queuePacket, {
+    body: { crewId: "am" },
+  });
+  const packetId = packetResponse.body.packet.id;
+  const packetList = callHandler(app.locals.apiHandlers.listPackets);
+  const acknowledged = callHandler(app.locals.apiHandlers.acknowledgePacket, {
+    params: { id: packetId },
+  });
+  const acknowledgedAgain = callHandler(app.locals.apiHandlers.acknowledgePacket, {
+    params: { id: packetId },
+  });
+  const contactResponse = callHandler(app.locals.apiHandlers.scheduleContactRequest, {
+    body: { crewId: "AM", message: "Review synthetic readings", delayMinutes: 15 },
+  });
+  const contactId = contactResponse.body.contactRequest.id;
+  const contactList = callHandler(app.locals.apiHandlers.listContactRequests);
+  const cancelled = callHandler(app.locals.apiHandlers.cancelContactRequest, {
+    params: { id: contactId },
+  });
+  const cancelledAgain = callHandler(app.locals.apiHandlers.cancelContactRequest, {
+    params: { id: contactId },
+  });
+  const missingContact = callHandler(app.locals.apiHandlers.cancelContactRequest, {
+    params: { id: "missing" },
+  });
+  const invalidContact = callHandler(app.locals.apiHandlers.scheduleContactRequest, {
+    body: { crewId: "AM", message: " ", delayMinutes: 15 },
+  });
+
+  assert.equal(packetResponse.statusCode, 201);
+  assert.equal(packetResponse.body.packet.payload.dataMode, "simulated-demo");
+  assert.equal(packetList.body.packets[0].id, packetId);
+  assert.equal(acknowledged.body.packet.acknowledged, true);
+  assert.equal(acknowledgedAgain.body.packet.acknowledged, true);
+  assert.equal(contactResponse.statusCode, 201);
+  assert.equal(contactResponse.body.externalDelivery, false);
+  assert.equal(contactList.body.contactRequests[0].id, contactId);
+  assert.equal(cancelled.body.contactRequest.status, "cancelled-local");
+  assert.equal(cancelledAgain.body.contactRequest.status, "cancelled-local");
+  assert.equal(missingContact.statusCode, 404);
+  assert.equal(invalidContact.statusCode, 400);
 });
 
 test("exports a simulated CSV report and rejects unknown crew", () => {

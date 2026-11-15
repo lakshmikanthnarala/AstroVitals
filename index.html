@@ -112,7 +112,7 @@
               <section class="panel alerts-card" id="alerts" aria-labelledby="alerts-title">
                 <div class="panel-heading"><div><span class="panel-icon coral-text" aria-hidden="true">♧</span><h2 id="alerts-title">Active Bio-Alarms &amp; Triage Log</h2></div><span class="log-badge">REALTIME FIFO</span></div>
                 <div class="alert-list" id="alert-list"></div>
-                <div class="alert-footer"><span>AUTO-TRIAGE AI: LEVEL 2 ACTIVE</span><button id="acknowledge-all" type="button">ACKNOWLEDGE ALL</button><button id="dispatch-note" type="button">DISPATCH SURGEON NOTE</button></div>
+                <div class="alert-footer"><span>AUTO-TRIAGE AI: LEVEL 2 ACTIVE</span><button id="acknowledge-all" type="button">ACKNOWLEDGE ALL</button><button id="dispatch-note" type="button">QUEUE SURGEON NOTE</button></div>
               </section>
             </div>
           </section>
@@ -193,7 +193,35 @@
                 <p class="module-description">Review-only controls. This prototype does not initiate treatment or contact mission control.</p>
                 <button class="action-row" type="button" data-action="Review simulated telemetry"><span class="action-icon">⌁</span><span><strong>Review telemetry summary</strong><small>Display this crew member's recorded demo values</small></span><b>REVIEW</b></button>
                 <button class="action-row" type="button" data-action="Protocol notes are not configured"><span class="action-icon">▤</span><span><strong>View medical protocol reference</strong><small>No treatment instructions are available in this demo</small></span><b>VIEW</b></button>
-                <button class="action-row" type="button" data-action="Progress notes are stored only in this browser session"><span class="action-icon">≡</span><span><strong>Compose local review note</strong><small>Session-only · no message is sent</small></span><b>COMPOSE</b></button>
+                <button class="action-row" id="compose-contact-request" type="button"><span class="action-icon">≡</span><span><strong>Compose local review note</strong><small>Saved locally · never transmitted</small></span><b>COMPOSE</b></button>
+              </section>
+              <section class="panel clinical-module action-queue">
+                <div class="module-heading"><span class="module-icon cyan-text">⇄</span><h2>Local Mission Action Queue</h2><span class="status-tag">OFFLINE ONLY</span></div>
+                <p class="module-description">Queue a simulated telemetry snapshot or schedule a local review draft. No packet or message leaves this device.</p>
+                <div class="action-queue-columns">
+                  <section aria-labelledby="packet-queue-title">
+                    <h3 id="packet-queue-title">Telemetry packets</h3>
+                    <p class="module-description">Store a snapshot of the selected crew member's demo readings.</p>
+                    <button class="primary-button" id="queue-packet-button" type="button">QUEUE HEALTH SNAPSHOT</button>
+                    <ul class="local-action-list" id="packet-list" aria-live="polite"></ul>
+                  </section>
+                  <section aria-labelledby="contact-queue-title">
+                    <h3 id="contact-queue-title">Delayed-contact draft</h3>
+                    <form id="contact-request-form">
+                      <label for="contact-message">Review note</label>
+                      <textarea id="contact-message" name="message" maxlength="1000" required placeholder="Write a local-only review note"></textarea>
+                      <label for="contact-delay">Local reminder delay</label>
+                      <select id="contact-delay" name="delayMinutes">
+                        <option value="0">No delay</option>
+                        <option value="5">5 minutes</option>
+                        <option value="15">15 minutes</option>
+                        <option value="60">1 hour</option>
+                      </select>
+                      <button class="primary-button" type="submit">SAVE LOCAL DRAFT</button>
+                    </form>
+                    <ul class="local-action-list" id="contact-list" aria-live="polite"></ul>
+                  </section>
+                </div>
               </section>
             </div>
           </section>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import math
 import os
 import re
@@ -11,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Iterator
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
@@ -134,6 +136,35 @@ class TelemetryAnalysis(BaseModel):
         return value.strip()
 
 
+class PacketCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    crewId: str = Field(min_length=1, max_length=20)
+
+    @field_validator("crewId")
+    @classmethod
+    def normalize_crew_id(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class ContactRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    crewId: str = Field(min_length=1, max_length=20)
+    message: str = Field(min_length=1, max_length=1000)
+    delayMinutes: int = Field(default=0, ge=0, le=1440, strict=True)
+
+    @field_validator("crewId")
+    @classmethod
+    def normalize_crew_id(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @field_validator("message")
+    @classmethod
+    def trim_message(cls, value: str) -> str:
+        return value.strip()
+
+
 class Database:
     def __init__(self, path: str | Path):
         self.path = str(path)
@@ -190,6 +221,23 @@ class Database:
                     description TEXT NOT NULL,
                     occurred_at TEXT NOT NULL,
                     acknowledged_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS packets (
+                    id TEXT PRIMARY KEY,
+                    crew_id TEXT NOT NULL REFERENCES crew(id) ON DELETE CASCADE,
+                    packet_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    queued_at TEXT NOT NULL,
+                    acknowledged_at TEXT
+                );
+                CREATE TABLE IF NOT EXISTS contact_requests (
+                    id TEXT PRIMARY KEY,
+                    crew_id TEXT NOT NULL REFERENCES crew(id) ON DELETE CASCADE,
+                    message TEXT NOT NULL,
+                    delay_minutes INTEGER NOT NULL CHECK(delay_minutes BETWEEN 0 AND 1440),
+                    created_at TEXT NOT NULL,
+                    scheduled_for TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK(status IN ('scheduled-local', 'cancelled-local'))
                 );
                 """
             )
@@ -395,6 +443,29 @@ def _format_alert(row: sqlite3.Row) -> dict:
         "description": row["description"],
         "occurredAt": row["occurred_at"],
         "acknowledged": row["acknowledged_at"] is not None,
+    }
+
+
+def _format_packet(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "crewId": row["crew_id"],
+        "packetType": row["packet_type"],
+        "payload": json.loads(row["payload"]),
+        "queuedAt": row["queued_at"],
+        "acknowledged": row["acknowledged_at"] is not None,
+    }
+
+
+def _format_contact_request(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "crewId": row["crew_id"],
+        "message": row["message"],
+        "delayMinutes": row["delay_minutes"],
+        "createdAt": row["created_at"],
+        "scheduledFor": row["scheduled_for"],
+        "status": row["status"],
     }
 
 
@@ -605,6 +676,118 @@ def create_app(
                 raise HTTPException(status_code=404, detail="Alert not found")
             row = connection.execute("SELECT * FROM alerts WHERE id = ?", (normalized_id,)).fetchone()
         return {"alert": _format_alert(row), "dataMode": DATA_MODE}
+
+    @app.get("/api/packets")
+    def list_packets():
+        with database.connection() as connection:
+            rows = connection.execute("SELECT * FROM packets ORDER BY queued_at DESC").fetchall()
+        return {"packets": [_format_packet(row) for row in rows], "dataMode": DATA_MODE}
+
+    @app.post("/api/packets", status_code=201)
+    def queue_packet(details: PacketCreate):
+        crew_id = _crew_id(details.crewId)
+        with database.connection() as connection:
+            row = connection.execute("SELECT * FROM crew WHERE id = ?", (crew_id,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Crew member not found")
+            member = _format_crew(row, model_engine)
+            payload = {
+                "name": member["name"],
+                "callsign": member["callsign"],
+                "hr": member["hr"],
+                "bp": member["bp"],
+                "spo2": member["spo2"],
+                "rr": member["rr"],
+                "temp": member["temp"],
+                "hrv": member["hrv"],
+                "dataMode": DATA_MODE,
+            }
+            packet_id = uuid4().hex
+            queued_at = datetime.now(timezone.utc).isoformat()
+            connection.execute(
+                """
+                INSERT INTO packets (id, crew_id, packet_type, payload, queued_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (packet_id, crew_id, "health-summary", json.dumps(payload), queued_at),
+            )
+            packet = connection.execute("SELECT * FROM packets WHERE id = ?", (packet_id,)).fetchone()
+        return {"packet": _format_packet(packet), "dataMode": DATA_MODE}
+
+    @app.post("/api/packets/{packet_id}/acknowledge")
+    def acknowledge_packet(packet_id: str):
+        with database.connection() as connection:
+            result = connection.execute(
+                "UPDATE packets SET acknowledged_at = COALESCE(acknowledged_at, ?) WHERE id = ?",
+                (datetime.now(timezone.utc).isoformat(), packet_id),
+            )
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Packet not found")
+            row = connection.execute("SELECT * FROM packets WHERE id = ?", (packet_id,)).fetchone()
+        return {"packet": _format_packet(row), "dataMode": DATA_MODE}
+
+    @app.get("/api/contact-requests")
+    def list_contact_requests():
+        with database.connection() as connection:
+            rows = connection.execute("SELECT * FROM contact_requests ORDER BY created_at DESC").fetchall()
+        return {
+            "contactRequests": [_format_contact_request(row) for row in rows],
+            "dataMode": DATA_MODE,
+            "externalDelivery": False,
+        }
+
+    @app.post("/api/contact-requests", status_code=201)
+    def schedule_contact_request(details: ContactRequestCreate):
+        crew_id = _crew_id(details.crewId)
+        message = details.message.strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Message is required")
+        with database.connection() as connection:
+            if not connection.execute("SELECT id FROM crew WHERE id = ?", (crew_id,)).fetchone():
+                raise HTTPException(status_code=404, detail="Crew member not found")
+            now = datetime.now(timezone.utc)
+            scheduled_for = now + timedelta(minutes=details.delayMinutes)
+            request_id = uuid4().hex
+            connection.execute(
+                """
+                INSERT INTO contact_requests (
+                    id, crew_id, message, delay_minutes, created_at, scheduled_for, status
+                ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled-local')
+                """,
+                (
+                    request_id, crew_id, message, details.delayMinutes,
+                    now.isoformat(), scheduled_for.isoformat(),
+                ),
+            )
+            row = connection.execute(
+                "SELECT * FROM contact_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+        return {
+            "contactRequest": _format_contact_request(row),
+            "dataMode": DATA_MODE,
+            "externalDelivery": False,
+        }
+
+    @app.post("/api/contact-requests/{request_id}/cancel")
+    def cancel_contact_request(request_id: str):
+        with database.connection() as connection:
+            result = connection.execute(
+                """
+                UPDATE contact_requests SET status = 'cancelled-local'
+                WHERE id = ?
+                """,
+                (request_id,),
+            )
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Contact request not found")
+            row = connection.execute(
+                "SELECT * FROM contact_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+        return {
+            "contactRequest": _format_contact_request(row),
+            "dataMode": DATA_MODE,
+            "externalDelivery": False,
+        }
 
     @app.get("/api/crew/{crew_id}/report.csv")
     def export_report(crew_id: str):

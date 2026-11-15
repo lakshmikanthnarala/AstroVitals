@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
+const { randomUUID } = require("node:crypto");
 
 const DEMO_ENVIRONMENT = {
   co2Ppm: 820,
@@ -100,6 +101,23 @@ function initializeDatabase(db) {
       occurred_at TEXT NOT NULL,
       acknowledged_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS packets (
+      id TEXT PRIMARY KEY,
+      crew_id TEXT NOT NULL REFERENCES crew(id) ON DELETE CASCADE,
+      packet_type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      queued_at TEXT NOT NULL,
+      acknowledged_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS contact_requests (
+      id TEXT PRIMARY KEY,
+      crew_id TEXT NOT NULL REFERENCES crew(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      delay_minutes INTEGER NOT NULL CHECK(delay_minutes BETWEEN 0 AND 1440),
+      created_at TEXT NOT NULL,
+      scheduled_for TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('scheduled-local', 'cancelled-local'))
+    );
   `);
 
   const crewCount = db.prepare("SELECT COUNT(*) AS count FROM crew").get().count;
@@ -195,6 +213,37 @@ function parseBloodPressure(value) {
   return Number.isFinite(systolic) && Number.isFinite(diastolic) ? { systolic, diastolic } : null;
 }
 
+function validateTelemetryInput(body) {
+  const allowedFields = new Set(["hr", "bp", "spo2", "rr", "temp", "hrv", "sleepHours"]);
+  if (!body || typeof body !== "object" || Array.isArray(body)
+    || Object.keys(body).some((field) => !allowedFields.has(field))) {
+    return { error: "Telemetry must be a JSON object with supported fields" };
+  }
+
+  const telemetry = { sleepHours: 7, ...body };
+  const integerLimits = { hr: [20, 250], spo2: [0, 100], rr: [1, 80], hrv: [1, 300] };
+  for (const [field, [minimum, maximum]] of Object.entries(integerLimits)) {
+    if (!Number.isInteger(telemetry[field]) || telemetry[field] < minimum || telemetry[field] > maximum) {
+      return { error: `${field} is outside the accepted input range` };
+    }
+  }
+  if (typeof telemetry.bp !== "string") {
+    return { error: "Blood pressure must be a systolic/diastolic string" };
+  }
+  const pressure = parseBloodPressure(telemetry.bp);
+  if (!pressure || pressure.systolic < 50 || pressure.systolic > 300
+    || pressure.diastolic < 30 || pressure.diastolic > 200) {
+    return { error: "Blood pressure is outside the accepted input range" };
+  }
+  if (typeof telemetry.temp !== "number" || !Number.isFinite(telemetry.temp)
+    || telemetry.temp < 25 || telemetry.temp > 45
+    || typeof telemetry.sleepHours !== "number" || !Number.isFinite(telemetry.sleepHours)
+    || telemetry.sleepHours < 0 || telemetry.sleepHours > 24) {
+    return { error: "Temperature or sleepHours is outside the accepted input range" };
+  }
+  return { telemetry };
+}
+
 function buildSupervisedClassifier(member) {
   const bp = parseBloodPressure(member?.bp);
   const heartRate = Number(member?.hr ?? 0);
@@ -233,8 +282,11 @@ function buildSupervisedClassifier(member) {
   const confidence = Math.min(99, 52 + abnormalityScore * 9 + (spo2 >= 96 ? 12 : 0));
 
   return {
-    modelName: "Supervised physiological classifier",
-    modelVersion: "demo-rf-v1",
+    modelName: "Rule-based demo classifier",
+    modelVersion: "rule-based-demo-v1",
+    predictedClass: abnormalityScore >= 3
+      ? "physiological_abnormality"
+      : abnormalityScore >= 1 ? "monitor_deviation" : "normal",
     predictedScenario: scenarioLabel,
     confidence: Math.round(confidence),
     features: featureVector,
@@ -261,10 +313,11 @@ function buildAnomalyDetector(member, environment = DEMO_ENVIRONMENT) {
   const score = Math.min(100, deviations.length * 18 + (spo2 < 95 ? 18 : 0));
 
   return {
-    modelName: "Isolation forest anomaly detector",
-    modelVersion: "demo-iforest-v1",
+    modelName: "Threshold-based deviation detector",
+    modelVersion: "threshold-deviation-demo-v1",
     anomalyScore: score,
     isAnomalous: score >= 35,
+    referenceFlags: deviations,
     contributingFactors: deviations,
   };
 }
@@ -425,6 +478,10 @@ function formatCrew(row) {
     riskScore: scenario.score,
     scenarioSummary: scenario.summary,
     triggeredScenarios: scenario.triggeredScenarios,
+    observations: scenario.observations,
+    classifier: scenario.classifier,
+    anomaly: scenario.anomaly,
+    decisionEngine: scenario.decisionEngine,
     ...healthMetrics,
   };
 }
@@ -439,10 +496,63 @@ function formatAlert(row) {
   };
 }
 
+function formatPacket(row) {
+  return {
+    id: row.id,
+    crewId: row.crew_id,
+    packetType: row.packet_type,
+    payload: JSON.parse(row.payload),
+    queuedAt: row.queued_at,
+    acknowledged: row.acknowledged_at !== null,
+  };
+}
+
+function formatContactRequest(row) {
+  return {
+    id: row.id,
+    crewId: row.crew_id,
+    message: row.message,
+    delayMinutes: row.delay_minutes,
+    createdAt: row.created_at,
+    scheduledFor: row.scheduled_for,
+    status: row.status,
+  };
+}
+
 function createApiHandlers(db) {
   return {
     health(_request, response) {
-      response.json({ status: "ok", dataMode: "simulated-demo" });
+      response.json({
+        status: "ok",
+        dataMode: "simulated-demo",
+        aiMode: "rule-based-demo-fallback",
+      });
+    },
+    aiStatus(_request, response) {
+      response.json({
+        status: "ready",
+        mode: "rule-based-demo-fallback",
+        trainingData: "threshold rules; no model training",
+        trainingSamples: 0,
+        models: [
+          { name: "Rule-based demo classifier", version: "rule-based-demo-v1" },
+          { name: "Threshold-based deviation detector", version: "threshold-deviation-demo-v1" },
+        ],
+        clinicalUse: false,
+      });
+    },
+    analyzeTelemetry(request, response) {
+      const { telemetry, error } = validateTelemetryInput(request.body);
+      if (error) {
+        response.status(400).json({ error });
+        return;
+      }
+      const evaluation = evaluateHealthScenario(telemetry);
+      response.json({
+        ...evaluation,
+        dataMode: "simulated-demo",
+        clinicalUse: false,
+      });
     },
     listCrew(_request, response) {
       const crew = db.prepare("SELECT * FROM crew ORDER BY callsign").all().map(formatCrew);
@@ -608,7 +718,18 @@ function createApiHandlers(db) {
         hrv: member.hrv,
         sleepHours: DEMO_HEALTH_METRICS[row.id]?.sleepHours ?? 7,
       }, DEMO_ENVIRONMENT);
-      response.json({ crewId: member.id, status: evaluation.status, riskScore: evaluation.score, summary: evaluation.summary, triggeredScenarios: evaluation.triggeredScenarios, observations: evaluation.observations, dataMode: "simulated-demo" });
+      response.json({
+        crewId: member.id,
+        status: evaluation.status,
+        riskScore: evaluation.score,
+        summary: evaluation.summary,
+        triggeredScenarios: evaluation.triggeredScenarios,
+        observations: evaluation.observations,
+        classifier: evaluation.classifier,
+        anomaly: evaluation.anomaly,
+        decisionEngine: evaluation.decisionEngine,
+        dataMode: "simulated-demo",
+      });
     },
     acknowledgeAlert(request, response) {
       const alertId = String(request.params?.id || "").trim();
@@ -624,6 +745,118 @@ function createApiHandlers(db) {
 
       const alert = db.prepare("SELECT * FROM alerts WHERE id = ?").get(alertId);
       response.json({ alert: formatAlert(alert), dataMode: "simulated-demo" });
+    },
+    listPackets(_request, response) {
+      const packets = db.prepare("SELECT * FROM packets ORDER BY queued_at DESC").all().map(formatPacket);
+      response.json({ packets, dataMode: "simulated-demo" });
+    },
+    queuePacket(request, response) {
+      const body = request.body;
+      if (!body || typeof body !== "object" || Array.isArray(body)
+        || Object.keys(body).some((field) => field !== "crewId")
+        || typeof body.crewId !== "string" || body.crewId.length < 1 || body.crewId.length > 20) {
+        response.status(400).json({ error: "Packet details are invalid" });
+        return;
+      }
+      const crewId = normalizeCrewId(body.crewId);
+      const row = crewId ? db.prepare("SELECT * FROM crew WHERE id = ?").get(crewId) : null;
+      if (!row) {
+        response.status(404).json({ error: "Crew member not found" });
+        return;
+      }
+      const member = formatCrew(row);
+      const payload = {
+        name: member.name,
+        callsign: member.callsign,
+        hr: member.hr,
+        bp: member.bp,
+        spo2: member.spo2,
+        rr: member.rr,
+        temp: member.temp,
+        hrv: member.hrv,
+        dataMode: "simulated-demo",
+      };
+      const packetId = randomUUID();
+      const queuedAt = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO packets (id, crew_id, packet_type, payload, queued_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(packetId, crewId, "health-summary", JSON.stringify(payload), queuedAt);
+      const packet = db.prepare("SELECT * FROM packets WHERE id = ?").get(packetId);
+      response.status(201).json({ packet: formatPacket(packet), dataMode: "simulated-demo" });
+    },
+    acknowledgePacket(request, response) {
+      const packetId = String(request.params?.id || "");
+      const result = db.prepare(`
+        UPDATE packets SET acknowledged_at = COALESCE(acknowledged_at, ?)
+        WHERE id = ?
+      `).run(new Date().toISOString(), packetId);
+      if (result.changes === 0) {
+        response.status(404).json({ error: "Packet not found" });
+        return;
+      }
+      const packet = db.prepare("SELECT * FROM packets WHERE id = ?").get(packetId);
+      response.json({ packet: formatPacket(packet), dataMode: "simulated-demo" });
+    },
+    listContactRequests(_request, response) {
+      const contactRequests = db.prepare("SELECT * FROM contact_requests ORDER BY created_at DESC")
+        .all().map(formatContactRequest);
+      response.json({ contactRequests, dataMode: "simulated-demo", externalDelivery: false });
+    },
+    scheduleContactRequest(request, response) {
+      const body = request.body;
+      if (!body || typeof body !== "object" || Array.isArray(body)
+        || Object.keys(body).some((field) => !["crewId", "message", "delayMinutes"].includes(field))
+        || typeof body.crewId !== "string" || body.crewId.length < 1 || body.crewId.length > 20
+        || typeof body.message !== "string" || body.message.length > 1000) {
+        response.status(400).json({ error: "Contact request details are invalid" });
+        return;
+      }
+      const crewId = normalizeCrewId(body?.crewId);
+      const member = crewId ? db.prepare("SELECT id FROM crew WHERE id = ?").get(crewId) : null;
+      const message = typeof body?.message === "string" ? body.message.trim() : "";
+      const delayMinutes = body?.delayMinutes ?? 0;
+      if (!member) {
+        response.status(404).json({ error: "Crew member not found" });
+        return;
+      }
+      if (!message || message.length > 1000
+        || !Number.isInteger(delayMinutes) || delayMinutes < 0 || delayMinutes > 1440) {
+        response.status(400).json({ error: "Message or delayMinutes is outside the accepted input range" });
+        return;
+      }
+      const now = new Date();
+      const requestId = randomUUID();
+      const scheduledFor = new Date(now.getTime() + delayMinutes * 60 * 1000).toISOString();
+      db.prepare(`
+        INSERT INTO contact_requests (
+          id, crew_id, message, delay_minutes, created_at, scheduled_for, status
+        ) VALUES (?, ?, ?, ?, ?, ?, 'scheduled-local')
+      `).run(requestId, crewId, message, delayMinutes, now.toISOString(), scheduledFor);
+      const contactRequest = db.prepare("SELECT * FROM contact_requests WHERE id = ?").get(requestId);
+      response.status(201).json({
+        contactRequest: formatContactRequest(contactRequest),
+        dataMode: "simulated-demo",
+        externalDelivery: false,
+      });
+    },
+    cancelContactRequest(request, response) {
+      const requestId = String(request.params?.id || "");
+      const existing = db.prepare("SELECT * FROM contact_requests WHERE id = ?").get(requestId);
+      if (!existing) {
+        response.status(404).json({ error: "Contact request not found" });
+        return;
+      }
+      db.prepare(`
+        UPDATE contact_requests SET status = 'cancelled-local'
+        WHERE id = ? AND status = 'scheduled-local'
+      `).run(requestId);
+      const contactRequest = db.prepare("SELECT * FROM contact_requests WHERE id = ?").get(requestId);
+      response.json({
+        contactRequest: formatContactRequest(contactRequest),
+        dataMode: "simulated-demo",
+        externalDelivery: false,
+      });
     },
     exportReport(request, response) {
       const crewId = normalizeCrewId(request.params?.id);
@@ -700,13 +933,22 @@ function createApp({ dbPath = process.env.DB_PATH || path.join(__dirname, "data"
   app.locals.apiHandlers = createApiHandlers(db);
 
   app.get("/api/health", app.locals.apiHandlers.health);
+  app.get("/api/ai/status", app.locals.apiHandlers.aiStatus);
+  app.post("/api/ai/analyze", app.locals.apiHandlers.analyzeTelemetry);
   app.get("/api/crew", app.locals.apiHandlers.listCrew);
   app.post("/api/crew", app.locals.apiHandlers.addCrew);
   app.get("/api/crew/:id/trends", app.locals.apiHandlers.getTrends);
   app.get("/api/crew/:id/scenario", app.locals.apiHandlers.getScenario);
   app.get("/api/scenarios", app.locals.apiHandlers.listScenarios);
+  app.get("/api/ai/scenarios", app.locals.apiHandlers.listScenarios);
   app.get("/api/alerts", app.locals.apiHandlers.listAlerts);
   app.post("/api/alerts/:id/acknowledge", app.locals.apiHandlers.acknowledgeAlert);
+  app.get("/api/packets", app.locals.apiHandlers.listPackets);
+  app.post("/api/packets", app.locals.apiHandlers.queuePacket);
+  app.post("/api/packets/:id/acknowledge", app.locals.apiHandlers.acknowledgePacket);
+  app.get("/api/contact-requests", app.locals.apiHandlers.listContactRequests);
+  app.post("/api/contact-requests", app.locals.apiHandlers.scheduleContactRequest);
+  app.post("/api/contact-requests/:id/cancel", app.locals.apiHandlers.cancelContactRequest);
   app.get("/api/crew/:id/report.csv", app.locals.apiHandlers.exportReport);
 
   if (serveStatic) {
