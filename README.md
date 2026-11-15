@@ -2,7 +2,9 @@
 
 AstroVitals is a local, offline-first dashboard prototype backed by simulated demonstration data. It is not a clinical system and does not ingest live telemetry.
 
-The dashboard adapts to smaller screens, and the bottom-right zoom controls let you resize the display. Dashboard preferences are stored in the browser and do not affect the simulated health data.
+The Fleet Biometrics overview is the landing screen. Select a crew member to open their Clinical Diagnostics deep-dive, then use Fleet Overview to return to the roster.
+
+The dashboard adapts to smaller screens. Crew cards, trends, alerts, and crew reports use the local demo API; all displayed health values remain simulated and are not clinical measurements.
 
 The Python/FastAPI backend stores crew readings, trends, and alerts in SQLite. Its AI endpoints run an actual scikit-learn Random Forest classifier and Isolation Forest anomaly detector, trained at startup on a deterministic synthetic dataset. The models are demonstration code only: their labels, scores, thresholds, and outputs are not medically validated and must not be used for health decisions. The frontend's mission-risk score is a separate illustrative calculation. The packet queue and delayed-contact interaction remain browser-only simulations and do not send data to Earth or persist the queue. A NASA OSDR/GeneLab link is a public-catalog reference, not a live integration.
 
